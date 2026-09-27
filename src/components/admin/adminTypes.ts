@@ -4,6 +4,7 @@ export interface FormImageItem {
   id: string;
   url: string;
   file?: File;
+  thumbBlob?: Blob;
   isBlob: boolean;
   originalSize?: number;
   compressedSize?: number;

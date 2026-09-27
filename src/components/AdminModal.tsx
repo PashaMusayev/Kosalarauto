@@ -6,7 +6,7 @@ import {
 import { TransitCar } from '../types';
 import { DEFAULT_VEHICLE_PLACEHOLDER } from '../utils/imageFallback';
 import { useBodyScrollLock } from '../utils/scrollLock';
-import { compressImage } from '../utils/imageCompressor';
+import { compressImage, createThumbnail } from '../utils/imageCompressor';
 import { 
   uploadImageToSupabaseStorage, 
   deleteImagesFromSupabaseStorage,
@@ -454,7 +454,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             throw new Error(`Şəkil Supabase Storage-ə yüklənə bilmədi (${fileNameToUpload}): ${uploadRes.error || 'Xəta'}`);
           }
           finalImageUrls.push(uploadRes.publicUrl);
-          uploadThumbnailForImage(fileToUpload, uploadRes.publicUrl).catch(tErr => console.warn('Thumb upload notice:', tErr));
+          // Upload pre-made thumbnail (single compression!) if available, or fall back to full image
+          uploadThumbnailForImage(
+            item.thumbBlob || fileToUpload, 
+            uploadRes.publicUrl,
+            { isPreGeneratedThumb: Boolean(item.thumbBlob) }
+          ).catch(tErr => console.warn('Thumb upload notice:', tErr));
 
           // Revoke temporary blob URL
           try {
@@ -505,10 +510,27 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 console.warn('Image compression fallback notice:', cErr);
               }
 
+              // Derive thumbnail from the downloaded original blob!
+              let thumbBlob: Blob | undefined;
+              try {
+                const thumbRes = await createThumbnail(blob, 'thumb.webp', {
+                  maxWidth: 800,
+                  maxHeight: 800,
+                  quality: 0.80
+                });
+                thumbBlob = thumbRes.blob;
+              } catch (tErr) {
+                console.warn('URL thumbnail creation notice:', tErr);
+              }
+
               const upRes = await uploadImageToSupabaseStorage(fileToUpload, nameToUpload);
               if (upRes.success && upRes.publicUrl) {
                 finalImageUrls.push(upRes.publicUrl);
-                uploadThumbnailForImage(fileToUpload, upRes.publicUrl).catch(tErr => console.warn('Thumb upload notice:', tErr));
+                uploadThumbnailForImage(
+                  thumbBlob || fileToUpload, 
+                  upRes.publicUrl,
+                  { isPreGeneratedThumb: Boolean(thumbBlob) }
+                ).catch(tErr => console.warn('Thumb upload notice:', tErr));
               } else {
                 throw new Error(upRes.error || 'Yüklənmə xətası');
               }

@@ -6,7 +6,7 @@ import {
   uploadImageToSupabaseStorage,
   uploadThumbnailForImage 
 } from '../../services/imageStorageService';
-import { compressImage } from '../../utils/imageCompressor';
+import { compressImage, createThumbnail } from '../../utils/imageCompressor';
 import { detectImageFormatFromBuffer } from '../../utils/imageFormatDetector';
 
 export const MSG_UNREADABLE_FILE = "Bu şəkil telefonda oxuna bilmədi. Şəkli qalereyadan (məs. Google Photos) əvvəlcə cihaza endirin və yenidən seçin.";
@@ -181,14 +181,31 @@ export function useCarImages(showToast: (msg: string) => void) {
         console.warn('URL image compression fallback:', cErr);
       }
 
+      // Generate thumbnail from the downloaded ORIGINAL blob (single compression, 800px, quality 0.80)
+      let thumbBlob: Blob | undefined;
+      try {
+        const thumbRes = await createThumbnail(blob, 'thumb.webp', {
+          maxWidth: 800,
+          maxHeight: 800,
+          quality: 0.80
+        });
+        thumbBlob = thumbRes.blob;
+      } catch (tErr) {
+        console.warn('URL thumbnail generation notice:', tErr);
+      }
+
       // 4. Supabase Storage-ə ('CAR-IMAGES' / 'car-images') birbaşa upload et
       const uploadRes = await uploadImageToSupabaseStorage(fileToUpload, fileNameToUpload);
       if (!uploadRes.success || !uploadRes.publicUrl) {
         throw new Error(uploadRes.error || "Şəkil Supabase Storage anbarına yazıla bilmədi");
       }
 
-      // Generate and upload thumbnail (~480px WebP) alongside full image
-      uploadThumbnailForImage(fileToUpload, uploadRes.publicUrl).catch(thumbErr => {
+      // Generate and upload thumbnail derived from original blob
+      uploadThumbnailForImage(
+        thumbBlob || fileToUpload, 
+        uploadRes.publicUrl,
+        { isPreGeneratedThumb: Boolean(thumbBlob) }
+      ).catch(thumbErr => {
         console.warn('Background thumbnail creation notice:', thumbErr);
       });
 
@@ -337,6 +354,20 @@ export function useCarImages(showToast: (msg: string) => void) {
           formatInfo
         });
 
+        // Phase 59: Generate thumbnail directly from the ORIGINAL decoded source in-memory blob
+        let thumbBlob: Blob | undefined;
+        try {
+          const thumbRes = await createThumbnail(inMemoryBlob, 'thumb.webp', {
+            maxWidth: 800,
+            maxHeight: 800,
+            quality: 0.80,
+            formatInfo
+          });
+          thumbBlob = thumbRes.blob;
+        } catch (tErr) {
+          console.warn('Pre-generating thumbnail warning:', tErr);
+        }
+
         // Revoke temporary raw blob URL if it was created
         if (currentItem.url && currentItem.url.startsWith('blob:')) {
           try {
@@ -352,6 +383,7 @@ export function useCarImages(showToast: (msg: string) => void) {
                 ...p,
                 url: compressed.previewUrl,
                 file: compressed.file, // Holds ONLY the compressed in-memory File
+                thumbBlob, // Pre-generated thumbnail Blob from original source
                 fileName: compressed.file.name,
                 originalSize: origFile.size,
                 compressedSize: compressed.compressedSize,
@@ -422,6 +454,19 @@ export function useCarImages(showToast: (msg: string) => void) {
           });
           const previewUrl = URL.createObjectURL(inMemoryBlob);
 
+          let thumbBlob: Blob | undefined;
+          try {
+            const thumbRes = await createThumbnail(inMemoryBlob, 'thumb.webp', {
+              maxWidth: 800,
+              maxHeight: 800,
+              quality: 0.80,
+              formatInfo
+            });
+            thumbBlob = thumbRes.blob;
+          } catch (tErr) {
+            console.warn('Fallback original thumb generation warning:', tErr);
+          }
+
           successCount++;
           setImagesList(prev => {
             const mapped = prev.map(p => {
@@ -430,6 +475,7 @@ export function useCarImages(showToast: (msg: string) => void) {
                   ...p,
                   url: previewUrl,
                   file: fallbackFile,
+                  thumbBlob,
                   fileName: origFile.name,
                   originalSize: inMemoryBlob.size,
                   compressedSize: inMemoryBlob.size,

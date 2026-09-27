@@ -562,7 +562,7 @@ export async function compressImageFiles(
 
 /**
  * Produces an optimized thumbnail image:
- * ~480px max width/height, WebP, quality ~0.70 (target roughly 20-50KB).
+ * max 800px on the long side (short side ~600px for 4:3), WebP quality ~0.80 (target roughly 50-100KB).
  */
 export async function createThumbnail(
   input: File | Blob,
@@ -570,10 +570,10 @@ export async function createThumbnail(
   options: Partial<CompressionOptions> = {}
 ): Promise<CompressionResult> {
   return compressImage(input, fileName || 'thumb.webp', {
-    maxWidth: 480,
-    maxHeight: 480,
-    quality: 0.70,
-    maxSizeBytes: 60 * 1024,
+    maxWidth: 800,
+    maxHeight: 800,
+    quality: 0.80,
+    maxSizeBytes: 120 * 1024,
     preferredMimeType: 'image/webp',
     ...options
   });

@@ -1266,10 +1266,12 @@ async function startServer() {
 
       for (const item of itemsToDelete) {
         if (!item || typeof item !== 'string') continue;
+        const cleanItem = item.split('?')[0].split('#')[0].trim();
+        if (!cleanItem) continue;
 
         // Check if local file
-        if (item.includes('/pics/uploads/')) {
-          const localFileName = item.split('/pics/uploads/')[1]?.split('?')[0]?.split('#')[0];
+        if (cleanItem.includes('/pics/uploads/')) {
+          const localFileName = cleanItem.split('/pics/uploads/')[1];
           if (localFileName) {
             const cleanLocal = localFileName.replace(/[^a-zA-Z0-9._-]/g, '');
             localFiles.push(cleanLocal);
@@ -1283,7 +1285,7 @@ async function startServer() {
         }
 
         // Check if Supabase Storage URL or path
-        const match = item.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/[^/?#]+\/(.+)$/i);
+        const match = cleanItem.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/[^/?#]+\/(.+)$/i);
         if (match && match[1]) {
           const p = decodeURIComponent(match[1]);
           paths.push(p);
@@ -1299,15 +1301,15 @@ async function startServer() {
               else paths.push(`cars/${thumbP}`);
             }
           }
-        } else if (!item.startsWith('http') && !item.startsWith('/')) {
-          paths.push(item);
-          if (item.startsWith('cars/')) paths.push(item.replace(/^cars\//, ''));
-          else paths.push(`cars/${item}`);
+        } else if (!cleanItem.startsWith('http') && !cleanItem.startsWith('/')) {
+          paths.push(cleanItem);
+          if (cleanItem.startsWith('cars/')) paths.push(cleanItem.replace(/^cars\//, ''));
+          else paths.push(`cars/${cleanItem}`);
 
-          if (!item.includes('__thumb.')) {
-            const dot = item.lastIndexOf('.');
+          if (!cleanItem.includes('__thumb.')) {
+            const dot = cleanItem.lastIndexOf('.');
             if (dot !== -1) {
-              const thumbItem = `${item.substring(0, dot)}__thumb.webp`;
+              const thumbItem = `${cleanItem.substring(0, dot)}__thumb.webp`;
               paths.push(thumbItem);
               if (thumbItem.startsWith('cars/')) paths.push(thumbItem.replace(/^cars\//, ''));
               else paths.push(`cars/${thumbItem}`);

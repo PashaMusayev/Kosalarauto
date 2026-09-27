@@ -253,13 +253,22 @@ export function getThumbnailStoragePath(thumbUrl: string): string | null {
   return null;
 }
 
+export interface UploadThumbnailOptions {
+  isPreGeneratedThumb?: boolean;
+  quality?: number;
+  maxWidth?: number;
+  maxHeight?: number;
+}
+
 /**
- * Generates and uploads an optimized thumbnail (~480px WebP, quality ~0.70)
- * for a corresponding full-size image, using the deterministic naming convention.
+ * Generates and uploads an optimized thumbnail (max 800px WebP, quality ~0.80)
+ * for a corresponding full-size image, using deterministic naming convention.
+ * If sourceImage is a pre-generated thumbnail blob (single compression), uploads directly without recompression.
  */
 export async function uploadThumbnailForImage(
   sourceImage: File | Blob | string,
-  fullImageUrl: string
+  fullImageUrl: string,
+  options: UploadThumbnailOptions = {}
 ): Promise<{ success: boolean; thumbUrl?: string; error?: string }> {
   try {
     const thumbUrl = getThumbnailUrl(fullImageUrl);
@@ -272,17 +281,32 @@ export async function uploadThumbnailForImage(
       return { success: false, error: 'Could not extract storage path for thumbnail' };
     }
 
-    // Produce ~480px WebP thumbnail
-    let compRes: CompressionResult;
-    if (typeof sourceImage === 'string') {
-      const { blob } = await downloadExternalImageAsBlob(sourceImage);
-      compRes = await createThumbnail(blob, 'thumb.webp');
+    let fileToUpload: File;
+
+    if (options.isPreGeneratedThumb && typeof sourceImage !== 'string' && sourceImage instanceof Blob) {
+      // Pre-made thumbnail from single-compression pipeline: upload directly without re-compression
+      const fileName = storagePath.split('/').pop() || 'thumb.webp';
+      fileToUpload = sourceImage instanceof File
+        ? sourceImage
+        : new File([sourceImage], fileName, { type: sourceImage.type || 'image/webp' });
     } else {
-      compRes = await createThumbnail(sourceImage, 'thumb.webp');
+      // Generate thumbnail (max 800px, WebP quality ~0.80 by default, ~0.82 for backfill)
+      const quality = options.quality ?? 0.80;
+      const maxWidth = options.maxWidth ?? 800;
+      const maxHeight = options.maxHeight ?? 800;
+
+      let compRes: CompressionResult;
+      if (typeof sourceImage === 'string') {
+        const { blob } = await downloadExternalImageAsBlob(sourceImage);
+        compRes = await createThumbnail(blob, 'thumb.webp', { quality, maxWidth, maxHeight });
+      } else {
+        compRes = await createThumbnail(sourceImage, 'thumb.webp', { quality, maxWidth, maxHeight });
+      }
+      fileToUpload = compRes.file;
     }
 
     const uploadRes = await uploadImageToSupabaseStorage(
-      compRes.file,
+      fileToUpload,
       undefined,
       2,
       storagePath

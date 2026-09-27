@@ -101,6 +101,11 @@ export function getValidImageUrl(url?: string, options?: { width?: number; quali
 }
 
 /**
+ * Version constant for thumbnails. Incrementing busts cached thumbnails across CDN and browsers.
+ */
+export const THUMBNAIL_VERSION = 2;
+
+/**
  * In-memory set of thumbnail URLs that failed to load during the current browser session.
  * Prevents repeating 404 network storms on slow connections.
  */
@@ -108,17 +113,20 @@ const failedThumbnailUrls = new Set<string>();
 
 export function markThumbnailFailed(url?: string): void {
   if (!url || typeof url !== 'string') return;
-  failedThumbnailUrls.add(url.trim());
+  const trimmed = url.trim();
+  failedThumbnailUrls.add(trimmed);
+  failedThumbnailUrls.add(trimmed.split('?')[0]);
 }
 
 export function isThumbnailFailed(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
-  return failedThumbnailUrls.has(url.trim());
+  const trimmed = url.trim();
+  return failedThumbnailUrls.has(trimmed) || failedThumbnailUrls.has(trimmed.split('?')[0]);
 }
 
 /**
  * Deterministically derives the thumbnail URL for a given full-size car image URL.
- * Suffix convention: name.webp -> name__thumb.webp (always .webp)
+ * Suffix convention: name.webp -> name__thumb.webp?v=2 (always .webp with cache-busting version)
  * 
  * If the thumbnail has failed during this session (recorded in failedThumbnailUrls),
  * returns the full-size URL directly without attempting the thumbnail.
@@ -134,10 +142,19 @@ export function getThumbnailUrl(fullUrl?: string): string {
   if (
     clean.startsWith('data:') ||
     clean.startsWith('blob:') ||
-    clean.endsWith('.svg') ||
-    clean.includes('__thumb.')
+    clean.endsWith('.svg')
   ) {
     return clean;
+  }
+
+  // If already a thumbnail URL, ensure it has the cache-busting version parameter
+  if (clean.includes('__thumb.')) {
+    if (clean.includes(`v=${THUMBNAIL_VERSION}`)) {
+      return clean;
+    }
+    const [pathPart, queryPart] = clean.split('?');
+    const newQuery = queryPart ? `${queryPart}&v=${THUMBNAIL_VERSION}` : `v=${THUMBNAIL_VERSION}`;
+    return `${pathPart}?${newQuery}`;
   }
 
   // Only apply thumbnail convention to Supabase Storage or local /pics/uploads/ paths
@@ -163,10 +180,12 @@ export function getThumbnailUrl(fullUrl?: string): string {
   }
 
   const basePath = urlWithoutQuery.substring(0, lastDot);
-  const candidateThumbUrl = `${basePath}__thumb.webp${query ? `?${query}` : ''}`;
+  const versionParam = `v=${THUMBNAIL_VERSION}`;
+  const queryStr = query ? `${query}&${versionParam}` : versionParam;
+  const candidateThumbUrl = `${basePath}__thumb.webp?${queryStr}`;
 
   // If this thumbnail previously failed in this session, avoid re-requesting a 404
-  if (failedThumbnailUrls.has(candidateThumbUrl)) {
+  if (isThumbnailFailed(candidateThumbUrl)) {
     return clean;
   }
 

@@ -157,7 +157,7 @@ export const ContactFooter: React.FC = () => {
                   href={SHOWROOM_MAP_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full bg-slate-950/90 hover:bg-blue-600 backdrop-blur-md text-white font-bold text-xs py-2 px-3 rounded-xl border border-slate-700/80 hover:border-blue-500 transition-all flex items-center justify-center gap-2 shadow-xl"
+                  className="w-full bg-slate-950/95 hover:bg-blue-600 text-white font-bold text-xs py-2 px-3 rounded-xl border border-slate-700/80 hover:border-blue-500 transition-colors flex items-center justify-center gap-2 shadow-xl"
                 >
                   <Navigation className="w-3.5 h-3.5 text-blue-400" />
                   <span>Salonun konumunu aç (Google Maps)</span>

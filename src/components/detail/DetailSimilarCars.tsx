@@ -74,10 +74,10 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
                     e.stopPropagation();
                     if (onToggleFavorite) onToggleFavorite(simCar.id);
                   }}
-                  className={`absolute top-2 right-2 p-1.5 rounded-lg backdrop-blur-md transition-transform hover:scale-110 z-10 ${
+                  className={`absolute top-2 right-2 p-1.5 rounded-lg transition-transform hover:scale-110 z-10 ${
                     simIsFav 
                       ? 'bg-red-600 text-white shadow-xs' 
-                      : 'bg-slate-900/60 text-white hover:text-red-400 hover:bg-slate-900/90'
+                      : 'bg-slate-900/70 text-white hover:text-red-400 hover:bg-slate-900/90'
                   }`}
                   title={simIsFav ? 'Seçilmişlərdən çıxar' : 'Seçilmişlərə əlavə et'}
                   aria-label="Seçilmişlərə əlavə et"
@@ -87,7 +87,7 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
 
                 {/* Base length badge */}
                 {simCar.baseLength && (
-                  <div className="absolute bottom-2 right-2 bg-slate-900/85 backdrop-blur-xs text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-700">
+                  <div className="absolute bottom-2 right-2 bg-slate-900/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-700">
                     {simCar.baseLength}
                   </div>
                 )}

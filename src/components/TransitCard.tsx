@@ -53,7 +53,7 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
 
   return (
     <div 
-      className="bg-white rounded-lg sm:rounded-xl border border-slate-200/50 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 flex flex-col overflow-hidden group cursor-pointer"
+      className="bg-white rounded-lg sm:rounded-xl border border-slate-200/50 shadow-sm transition-[transform,box-shadow] duration-200 [@media(hover:hover)]:hover:shadow-md [@media(hover:hover)]:hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer"
       onClick={() => onViewDetails(car)}
       onMouseEnter={handlePrefetch}
       onTouchStart={handlePrefetch}
@@ -93,7 +93,7 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
             e.stopPropagation();
             if (car?.id) onToggleFavorite(car.id);
           }}
-          className={`absolute top-1.5 right-1.5 p-1.5 rounded-full backdrop-blur-md transition-transform hover:scale-110 active:scale-95 z-20 cursor-pointer ${
+          className={`absolute top-1.5 right-1.5 p-1.5 rounded-full transition-transform hover:scale-110 active:scale-95 z-20 cursor-pointer ${
             isFavorite 
               ? 'bg-red-600 text-white shadow-sm' 
               : 'bg-black/35 text-white hover:text-red-400 hover:bg-black/60'
@@ -106,7 +106,7 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
 
         {/* Compact Base Length Pill */}
         {safeBaseLength && safeBaseLength !== 'Hamısı' && (
-          <div className="absolute bottom-1.5 left-1.5 bg-slate-900/80 backdrop-blur-xs text-slate-100 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700/60 pointer-events-none z-20">
+          <div className="absolute bottom-1.5 left-1.5 bg-slate-900/85 text-slate-100 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-700/60 pointer-events-none z-20">
             {safeBaseLength}
           </div>
         )}

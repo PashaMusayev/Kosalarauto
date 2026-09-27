@@ -857,7 +857,7 @@ export default function App() {
           </span>
 
           {/* Hover Tooltip Label */}
-          <div className="pointer-events-none absolute right-full mr-3 whitespace-nowrap bg-slate-900/95 text-emerald-300 border border-emerald-500/40 text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0 flex items-center gap-2 backdrop-blur-md hidden sm:flex">
+          <div className="pointer-events-none absolute right-full mr-3 whitespace-nowrap bg-slate-900/95 text-emerald-300 border border-emerald-500/40 text-xs font-bold px-3.5 py-2 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 translate-x-2 group-hover:translate-x-0 flex items-center gap-2 hidden sm:flex">
             <img 
               src={whatsappLogo} 
               alt="WhatsApp Logo" 

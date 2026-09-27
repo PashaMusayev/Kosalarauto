@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Phone, MessageCircle, Menu, X, Shield, Heart, Truck, Clock, MapPin } from 'lucide-react';
 import { PHONE_NUMBER, WHATSAPP_NUMBER, WHATSAPP_DIRECT_LINK } from '../data/transits';
 import fordLogo from '../pics/ford logo.png';
@@ -19,18 +19,37 @@ export const Header: React.FC<HeaderProps> = ({
   currentPath = '/'
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const isScrolledRef = useRef(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    let rafId: number | null = null;
     const handleScroll = () => {
-      if (window.scrollY > 20) {
-        setIsScrolled(true);
-      } else {
-        setIsScrolled(false);
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const nextScrolled = window.scrollY > 20;
+        if (isScrolledRef.current !== nextScrolled) {
+          isScrolledRef.current = nextScrolled;
+          setIsScrolled(nextScrolled);
+        }
+      });
+    };
+
+    // Initial check
+    const initialScrolled = window.scrollY > 20;
+    if (isScrolledRef.current !== initialScrolled) {
+      isScrolledRef.current = initialScrolled;
+      setIsScrolled(initialScrolled);
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
       }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   const handleNav = (target: string) => {
@@ -51,10 +70,10 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header id="main-header" className={`sticky top-0 z-40 transition-[background-color,box-shadow,backdrop-filter] duration-300 py-3.5 ${
+    <header id="main-header" className={`sticky top-0 z-40 transition-[background-color,box-shadow] duration-300 py-3.5 bg-white text-slate-900 ${
       isScrolled 
-        ? 'bg-white/95 backdrop-blur-md text-slate-900 shadow-sm' 
-        : 'bg-white text-slate-900'
+        ? 'shadow-sm' 
+        : ''
     }`}>
       {/* Top micro bar for quick trust info */}
       <div className="hidden lg:block bg-slate-50/80 text-slate-600 text-xs py-1.5 mb-2">

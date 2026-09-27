@@ -134,7 +134,7 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     {/* Künc İndeks Sayğacı */}
-                    <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/65 backdrop-blur-xs text-white text-[11px] font-semibold pointer-events-none">
+                    <div className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/75 text-white text-[11px] font-semibold pointer-events-none">
                       {idx + 1}
                     </div>
                   </button>

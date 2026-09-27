@@ -570,6 +570,84 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
     }
   }, [totalImages, goToSlide, wrapNext]);
 
+  // Desktop Lightbox Keyboard Navigation (Phase 61: ArrowLeft / ArrowRight only in desktop lightbox)
+  useEffect(() => {
+    // 1. Only active when isLightbox === true
+    if (!isLightbox) return;
+
+    const mediaQuery = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(min-width: 768px) and (hover: hover)')
+      : null;
+
+    let isDesktopHover = mediaQuery ? mediaQuery.matches : false;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle ArrowLeft and ArrowRight
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+
+      // Only on desktop (md breakpoint and up with hover capability)
+      if (!isDesktopHover) return;
+
+      // Ignore if fewer than 2 images
+      if (totalImages <= 1) return;
+
+      // 3. One step per press: ignore auto-repeat events
+      if (e.repeat) return;
+
+      // 5. Ignore when a modifier key is held (Ctrl/Alt/Meta/Shift)
+      if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+
+      // 5. Ignore when focus is inside an input, textarea, select, or contenteditable
+      const target = e.target as HTMLElement | null;
+      if (target) {
+        const tagName = target.tagName;
+        if (
+          tagName === 'INPUT' ||
+          tagName === 'TEXTAREA' ||
+          tagName === 'SELECT' ||
+          target.isContentEditable ||
+          target.getAttribute('contenteditable') === 'true'
+        ) {
+          return;
+        }
+      }
+
+      // 4. Call e.preventDefault() so the page/modal behind the lightbox does not scroll
+      e.preventDefault();
+
+      // 2. ArrowRight -> handleNext(), ArrowLeft -> handlePrev()
+      if (e.key === 'ArrowRight') {
+        handleNext();
+      } else if (e.key === 'ArrowLeft') {
+        handlePrev();
+      }
+    };
+
+    const handleMediaChange = (evt: MediaQueryListEvent) => {
+      isDesktopHover = evt.matches;
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    if (mediaQuery) {
+      if (typeof mediaQuery.addEventListener === 'function') {
+        mediaQuery.addEventListener('change', handleMediaChange);
+      } else if (typeof (mediaQuery as any).addListener === 'function') {
+        (mediaQuery as any).addListener(handleMediaChange);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (mediaQuery) {
+        if (typeof mediaQuery.removeEventListener === 'function') {
+          mediaQuery.removeEventListener('change', handleMediaChange);
+        } else if (typeof (mediaQuery as any).removeListener === 'function') {
+          (mediaQuery as any).removeListener(handleMediaChange);
+        }
+      }
+    };
+  }, [isLightbox, totalImages, handleNext, handlePrev]);
+
   const prevSyncedIndexRef = useRef(activeImageIndex);
 
   // Synchronize track position when activeImageIndex or containerWidth changes (when not dragging)

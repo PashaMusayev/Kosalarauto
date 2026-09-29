@@ -239,7 +239,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
         )}
 
         {/* Form */}
-        <form onSubmit={onSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <form noValidate onSubmit={onSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* 3-Tab Selector (Mobile Horizontally Scrollable) */}
           <div className="bg-slate-950 border-b border-slate-800 px-3 sm:px-6 pt-2 pb-0 overflow-x-auto scrollbar-none flex items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0">
             <button
@@ -311,6 +311,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                       Marka <span className="text-rose-400">*</span>:
                     </label>
                     <select
+                      id="car-form-brand"
                       value={currentBrand}
                       onChange={(e) => handleBrandChange(e.target.value)}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-blue-500 focus:outline-none"
@@ -332,6 +333,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                     </label>
                     {currentBrand && modelOptions.length > 0 ? (
                       <select
+                        id="car-form-model"
                         value={model}
                         onChange={(e) => {
                           const newModel = e.target.value;
@@ -353,6 +355,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                       </select>
                     ) : !currentBrand ? (
                       <select
+                        id="car-form-model"
                         disabled
                         value=""
                         className="w-full bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2 text-slate-500 font-medium cursor-not-allowed"
@@ -361,6 +364,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                       </select>
                     ) : (
                       <input
+                        id="car-form-model"
                         type="text"
                         value={model}
                         onChange={(e) => {
@@ -402,6 +406,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
+                        id="car-form-price"
                         type="number"
                         min={0}
                         step={100}
@@ -409,7 +414,6 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                         onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder=""
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-emerald-400 font-extrabold text-sm focus:border-emerald-500 focus:outline-none"
-                        required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">
                         AZN
@@ -450,13 +454,13 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
+                        id="car-form-mileage"
                         type="number"
                         min={0}
                         value={mileage}
                         onChange={(e) => setMileage(e.target.value === '' ? '' : Number(e.target.value))}
                         placeholder=""
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-10 py-2 text-white font-medium focus:border-blue-500 focus:outline-none"
-                        required
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">
                         km
@@ -522,12 +526,11 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                     </label>
                     <div className="relative">
                       <input
+                        id="car-form-hp"
                         type="number"
-                        min={50}
-                        max={600}
                         value={hp}
                         onChange={(e) => setHp(e.target.value === '' ? '' : Number(e.target.value))}
-                        placeholder=""
+                        placeholder="Məs: 155"
                         className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-3 pr-12 py-2 text-white font-medium focus:border-amber-500 focus:outline-none"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-bold">

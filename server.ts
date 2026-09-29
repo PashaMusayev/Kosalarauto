@@ -191,8 +191,14 @@ function validateAndSanitizeCars(cars: unknown[]): { valid: boolean; error?: str
     const bodyType = String(c.bodyType ?? c.body_type ?? '').trim().slice(0, 100);
     const color = String(c.color ?? '').trim().slice(0, 100);
     const engine = String(c.engine ?? '').trim().slice(0, 100);
-    const rawHp = c.hp !== undefined && c.hp !== null ? Number(c.hp) : (c.horsePower !== undefined && c.horsePower !== null ? Number(c.horsePower) : (c.horse_power !== undefined && c.horse_power !== null ? Number(c.horse_power) : undefined));
-    const hp = rawHp !== undefined && !isNaN(rawHp) && rawHp > 0 ? Math.min(2000, Math.max(0, rawHp)) : 0;
+    const rawHp = (c.hp !== undefined && c.hp !== null && String(c.hp).trim() !== '')
+      ? Number(c.hp)
+      : ((c.horsePower !== undefined && c.horsePower !== null && String(c.horsePower).trim() !== '')
+          ? Number(c.horsePower)
+          : ((c.horse_power !== undefined && c.horse_power !== null && String(c.horse_power).trim() !== '')
+              ? Number(c.horse_power)
+              : undefined));
+    const hp = rawHp !== undefined && !isNaN(rawHp) && rawHp > 0 ? Math.min(2000, Math.round(rawHp)) : 0;
     const fuelType = String(c.fuelType ?? c.fuel_type ?? '').trim().slice(0, 100);
     const transmission = String(c.transmission ?? '').trim().slice(0, 100);
     const wheelDrive = String(c.wheelDrive ?? c.driveType ?? c.drive_type ?? '').trim().slice(0, 100);

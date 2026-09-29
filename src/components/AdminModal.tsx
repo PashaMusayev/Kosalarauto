@@ -355,7 +355,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setBodyType(car.bodyType || '');
     setColor(car.color || '');
     setEngine(normalizeEngineValue(car.engine || ''));
-    setHp(typeof car.hp === 'number' ? car.hp : (car.hp ? Number(car.hp) : ''));
+    const rawCarHp = typeof car.hp === 'number' 
+      ? car.hp 
+      : (car.hp !== undefined && car.hp !== null && String(car.hp).trim() !== '' 
+          ? Number(car.hp) 
+          : (typeof car.specs?.hp === 'number' 
+              ? (car.specs.hp as number) 
+              : (typeof car.specs?.horsePower === 'number' ? (car.specs.horsePower as number) : undefined)));
+    setHp(rawCarHp !== undefined && !isNaN(rawCarHp) && rawCarHp > 0 ? rawCarHp : '');
     setFuelType(car.fuelType || '');
     setTransmission(car.transmission || '');
     setWheelDrive(normalizeWheelDriveValue(car.wheelDrive || ''));
@@ -391,11 +398,57 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Save Car
   const handleSaveCar = async (e: React.FormEvent) => {
     e.preventDefault();
-    const carTitle = `${brand} ${model}`.trim() || title.trim() || `${brand || 'Avtomobil'}`;
-    if (!brand.trim() || !model.trim() || !price || Number(price) <= 0) {
-      alert('Zəhmət olmasa marka, model və düzgün qiymət daxil edin.');
+
+    // Helper to switch to the tab containing the invalid field, focus it, and alert message
+    const failValidation = (tab: 'basics' | 'features' | 'media', elementId: string, message: string) => {
+      setActiveModalTab(tab);
+      setTimeout(() => {
+        const el = document.getElementById(elementId);
+        if (el) {
+          el.focus();
+        }
+      }, 50);
+      alert(message);
+    };
+
+    // 1. Marka check
+    if (!brand.trim()) {
+      failValidation('basics', 'car-form-brand', 'Zəhmət olmasa avtomobilin markasını seçin.');
       return;
     }
+
+    // 2. Model check
+    if (!model.trim()) {
+      failValidation('basics', 'car-form-model', 'Zəhmət olmasa avtomobilin modelini daxil edin.');
+      return;
+    }
+
+    // 3. Qiymət check (must be a positive number > 0)
+    if (price === '' || price === null || price === undefined || isNaN(Number(price)) || Number(price) <= 0) {
+      failValidation('basics', 'car-form-price', 'Zəhmət olmasa düzgün qiymət daxil edin (qiymət 0-dan böyük olmalıdır).');
+      return;
+    }
+
+    // 4. Yürüş check (must be >= 0; 0 is valid for a new vehicle)
+    if (mileage === '' || mileage === null || mileage === undefined || isNaN(Number(mileage)) || Number(mileage) < 0) {
+      failValidation('basics', 'car-form-mileage', 'Zəhmət olmasa düzgün yürüş daxil edin (yürüş mənfi ola bilməz).');
+      return;
+    }
+
+    // 5. At gücü (HP) check (optional: blank allowed, but if entered must be > 0 and <= 2000)
+    if (hp !== '' && hp !== null && hp !== undefined) {
+      const numHp = Number(hp);
+      if (isNaN(numHp) || numHp <= 0) {
+        failValidation('basics', 'car-form-hp', 'At gücü müsbət ədəd olmalıdır (məsələn: 155).');
+        return;
+      }
+      if (numHp > 2000) {
+        failValidation('basics', 'car-form-hp', 'At gücü 2000 a.g.-dən çox ola bilməz.');
+        return;
+      }
+    }
+
+    const carTitle = `${brand} ${model}`.trim() || title.trim() || `${brand || 'Avtomobil'}`;
 
     // Phase 56: Stop BEFORE any upload if there are failed/unreadable images
     const failedItems = imagesList.filter(item => Boolean(item.error));
@@ -582,6 +635,10 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       const existingCar = editingCarId ? carsList.find(c => c.id === editingCarId) : null;
       const safeVin = existingCar?.vinCode || '';
 
+      const parsedHp = hp !== '' && hp !== null && hp !== undefined && !isNaN(Number(hp)) && Number(hp) > 0
+        ? Math.min(2000, Math.round(Number(hp)))
+        : undefined;
+
       const carToSave: TransitCar = {
         id: editingCarId || `car-${Date.now()}`,
         title: safeTitle,
@@ -596,7 +653,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         bodyType,
         color: color.trim(),
         engine: engine.trim(),
-        hp: typeof hp === 'number' ? hp : (Number(hp) || undefined),
+        hp: parsedHp,
         fuelType: fuelType.trim(),
         transmission: transmission.trim(),
         wheelDrive: wheelDrive.trim(),
@@ -626,7 +683,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           transmission: transmission.trim(),
           wheelDrive: wheelDrive.trim(),
           engine: engine.trim(),
-          hp: typeof hp === 'number' ? hp : (Number(hp) || undefined),
+          hp: parsedHp,
+          horsePower: parsedHp,
           color: color.trim(),
           fuelType: fuelType.trim(),
           bodyType,

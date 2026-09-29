@@ -385,6 +385,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                       Buraxılış ili <span className="text-rose-400">*</span>:
                     </label>
                     <select
+                      id="car-form-year"
                       value={year}
                       onChange={(e) => setYear(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-medium focus:border-blue-500 focus:outline-none"

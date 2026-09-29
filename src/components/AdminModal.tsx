@@ -48,6 +48,10 @@ import { useCarImages } from './admin/useCarImages';
 import { useSupabaseSettings } from './admin/useSupabaseSettings';
 import { CanonicalBadge, mapLegacyBadges } from '../data/badges';
 
+// Year boundary constants (must stay in sync with server.ts: rawYear < 1970 || rawYear > 2035)
+export const MIN_VEHICLE_YEAR = 1970;
+export const MAX_VEHICLE_YEAR = 2035;
+
 interface AdminModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -423,7 +427,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
       return;
     }
 
-    // 3. Qiymət check (must be a positive number > 0)
+    // 3. Buraxılış ili check (required, integer, 1970–2035, matches server.ts)
+    const numYear = Number(year);
+    if (year === '' || year === null || year === undefined || isNaN(numYear) || !Number.isInteger(numYear) || numYear < MIN_VEHICLE_YEAR || numYear > MAX_VEHICLE_YEAR) {
+      failValidation('basics', 'car-form-year', `Zəhmət olmasa düzgün buraxılış ili daxil edin (${MIN_VEHICLE_YEAR}–${MAX_VEHICLE_YEAR}).`);
+      return;
+    }
+
+    // 4. Qiymət check (must be a positive number > 0)
     if (price === '' || price === null || price === undefined || isNaN(Number(price)) || Number(price) <= 0) {
       failValidation('basics', 'car-form-price', 'Zəhmət olmasa düzgün qiymət daxil edin (qiymət 0-dan böyük olmalıdır).');
       return;

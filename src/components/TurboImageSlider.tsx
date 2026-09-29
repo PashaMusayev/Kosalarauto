@@ -274,6 +274,9 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
   const [wrapVisualIndex, setWrapVisualIndex] = useState<number | null>(null);
   const isWrappingRef = useRef(false);
   const wrapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNavRef = useRef<'next' | 'prev' | null>(null);
+  const handleNextRef = useRef<() => void>(() => {});
+  const handlePrevRef = useRef<() => void>(() => {});
 
   // Clear wrap timeout on unmount
   useEffect(() => {
@@ -282,6 +285,7 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
         clearTimeout(wrapTimeoutRef.current);
         wrapTimeoutRef.current = null;
       }
+      pendingNavRef.current = null;
     };
   }, []);
 
@@ -411,6 +415,17 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
         }
         isWrappingRef.current = false;
         isInternalNavRef.current = false;
+
+        // Buffer execution: execute at most one pending navigation requested during wrap
+        if (pendingNavRef.current) {
+          const nextAction = pendingNavRef.current;
+          pendingNavRef.current = null;
+          if (nextAction === 'next') {
+            handleNextRef.current();
+          } else if (nextAction === 'prev') {
+            handlePrevRef.current();
+          }
+        }
       });
     }, 350);
   }, [totalImages, containerWidth, onIndexChange]);
@@ -447,6 +462,7 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
       if (!trackRef.current) {
         isWrappingRef.current = false;
         isInternalNavRef.current = false;
+        pendingNavRef.current = null;
         return;
       }
       const t = trackRef.current;
@@ -469,13 +485,31 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
         }
         isWrappingRef.current = false;
         isInternalNavRef.current = false;
+
+        // Buffer execution: execute at most one pending navigation requested during wrap
+        if (pendingNavRef.current) {
+          const nextAction = pendingNavRef.current;
+          pendingNavRef.current = null;
+          if (nextAction === 'next') {
+            handleNextRef.current();
+          } else if (nextAction === 'prev') {
+            handlePrevRef.current();
+          }
+        }
       });
     }, 350);
   }, [totalImages, containerWidth, onIndexChange]);
 
   // Navigate to slide with clean boundary handling and direction awareness (Phase 55)
   const goToSlide = useCallback((newIndex: number, direction?: 'next' | 'prev') => {
-    if (isWrappingRef.current) return;
+    if (isWrappingRef.current) {
+      if (direction) {
+        pendingNavRef.current = direction;
+      } else {
+        pendingNavRef.current = newIndex > currentIndexRef.current ? 'next' : 'prev';
+      }
+      return;
+    }
     const prevIndex = currentIndexRef.current;
 
     // Check for boundary wrap: direction-aware
@@ -531,7 +565,10 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
       e.stopPropagation();
       e.preventDefault();
     }
-    if (isWrappingRef.current) return;
+    if (isWrappingRef.current) {
+      pendingNavRef.current = 'prev';
+      return;
+    }
     if (isZoomedRef.current) {
       setScale(1);
       scaleRef.current = 1;
@@ -553,7 +590,10 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
       e.stopPropagation();
       e.preventDefault();
     }
-    if (isWrappingRef.current) return;
+    if (isWrappingRef.current) {
+      pendingNavRef.current = 'next';
+      return;
+    }
     if (isZoomedRef.current) {
       setScale(1);
       scaleRef.current = 1;
@@ -569,6 +609,12 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
       wrapNext();
     }
   }, [totalImages, goToSlide, wrapNext]);
+
+  // Keep references fresh for wrap timeout execution
+  useEffect(() => {
+    handleNextRef.current = handleNext;
+    handlePrevRef.current = handlePrev;
+  }, [handleNext, handlePrev]);
 
   // Desktop Lightbox Keyboard Navigation (Phase 61: ArrowLeft / ArrowRight only in desktop lightbox)
   useEffect(() => {

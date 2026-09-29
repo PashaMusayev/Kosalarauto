@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { X, Heart, Phone, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PHONE_NUMBER } from '../../data/transits';
@@ -37,54 +37,97 @@ export const DetailLightbox: React.FC<DetailLightboxProps> = ({
   const thumbnailRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const thumbnailsContainerRef = useRef<HTMLDivElement>(null);
   const prevIsOpen = useRef(false);
+  const lastScrollTimeRef = useRef(0);
 
-  // Desktop hover preview state (Issue 5: previews thumbnail on mouse hover without permanent change)
+  // Desktop hover preview state (previews thumbnail on mouse hover without permanent change)
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const suppressHoverRef = useRef(false);
+  const lastMousePosRef = useRef({ x: 0, y: 0 });
 
   // Reset preview when lightbox closes
   useEffect(() => {
     if (!isOpen) {
       setPreviewIndex(null);
+      suppressHoverRef.current = false;
     }
+  }, [isOpen]);
+
+  // Clear hover preview whenever active image index changes (e.g. from slider arrows or keyboard)
+  useEffect(() => {
+    setPreviewIndex(null);
+  }, [activeImageIndex]);
+
+  // Track mouse movement vs keyboard/arrow navigation to prevent stale hover preview
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = Math.abs(e.clientX - lastMousePosRef.current.x);
+      const dy = Math.abs(e.clientY - lastMousePosRef.current.y);
+      if (dx > 4 || dy > 4) {
+        lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+        suppressHoverRef.current = false;
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        suppressHoverRef.current = true;
+        setPreviewIndex(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
+    };
   }, [isOpen]);
 
   const displayedIndex = previewIndex !== null ? previewIndex : activeImageIndex;
 
-  // Lightbox açıldıqda aktiv şəklin indeksini qoru və uyğun thumbnail-i görünən sahəyə gətir
+  // Helper to scroll ONLY the thumbnail container horizontally without affecting the page or modal
+  const scrollActiveThumbnailIntoView = useCallback((index: number, forceInstant: boolean = false) => {
+    const container = thumbnailsContainerRef.current;
+    const activeThumb = thumbnailRefs.current[index];
+    if (!container || !activeThumb) return;
+
+    const now = Date.now();
+    const isRapid = now - lastScrollTimeRef.current < 250;
+    lastScrollTimeRef.current = now;
+
+    const containerRect = container.getBoundingClientRect();
+    const thumbRect = activeThumb.getBoundingClientRect();
+
+    const relativeThumbLeft = thumbRect.left - containerRect.left + container.scrollLeft;
+    const targetScrollLeft = relativeThumbLeft - (container.clientWidth / 2) + (thumbRect.width / 2);
+    const maxScrollLeft = container.scrollWidth - container.clientWidth;
+
+    if (maxScrollLeft > 0) {
+      const clampedScrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+      container.scrollTo({
+        left: clampedScrollLeft,
+        behavior: (forceInstant || isRapid) ? 'auto' : 'smooth',
+      });
+    } else {
+      container.scrollTo({ left: 0, behavior: 'auto' });
+    }
+  }, []);
+
+  // When lightbox opens: bring active thumbnail into view instantly
   useEffect(() => {
     if (isOpen && !prevIsOpen.current) {
-      const activeThumb = thumbnailRefs.current[activeImageIndex];
-      if (activeThumb) {
-        activeThumb.scrollIntoView({
-          behavior: 'instant',
-          block: 'nearest',
-          inline: 'center',
-        });
-      }
+      scrollActiveThumbnailIntoView(activeImageIndex, true);
     }
     prevIsOpen.current = isOpen;
-  }, [isOpen, activeImageIndex]);
+  }, [isOpen, activeImageIndex, scrollActiveThumbnailIntoView]);
 
-  // Mərkəzləşdirmə və Active State sinxronizasiyası:
+  // Center active thumbnail horizontally when activeImageIndex changes
   useEffect(() => {
     if (!isOpen) return;
-
-    if (activeImageIndex === 0) {
-      if (thumbnailsContainerRef.current) {
-        thumbnailsContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-      }
-      return;
-    }
-
-    const activeThumb = thumbnailRefs.current[activeImageIndex];
-    if (activeThumb) {
-      activeThumb.scrollIntoView({
-        behavior: 'smooth',
-        block: 'nearest',
-        inline: 'center',
-      });
-    }
-  }, [activeImageIndex, isOpen]);
+    scrollActiveThumbnailIntoView(activeImageIndex, false);
+  }, [activeImageIndex, isOpen, scrollActiveThumbnailIntoView]);
 
   return (
     <AnimatePresence>
@@ -243,6 +286,7 @@ export const DetailLightbox: React.FC<DetailLightboxProps> = ({
               images={imagesList}
               activeImageIndex={displayedIndex}
               onIndexChange={(newIdx) => {
+                suppressHoverRef.current = true;
                 setPreviewIndex(null);
                 setActiveImageIndex(newIdx);
               }}
@@ -314,9 +358,14 @@ export const DetailLightbox: React.FC<DetailLightboxProps> = ({
                       key={`thumb-desktop-${idx}`}
                       ref={(el) => { thumbnailRefs.current[idx] = el; }}
                       type="button"
-                      onMouseEnter={() => setPreviewIndex(idx)}
+                      onMouseEnter={() => {
+                        if (!suppressHoverRef.current) {
+                          setPreviewIndex(idx);
+                        }
+                      }}
                       onMouseLeave={() => setPreviewIndex(null)}
                       onClick={() => {
+                        suppressHoverRef.current = false;
                         setPreviewIndex(null);
                         setActiveImageIndex(idx);
                       }}

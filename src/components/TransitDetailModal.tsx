@@ -227,12 +227,14 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
 
   // Sync with parent activeImageIndex when updated externally (e.g. from lightbox)
   useEffect(() => {
     setActiveImageIndex(parentActiveImageIndex);
-  }, [parentActiveImageIndex]);
+    setPreviewImageIndex(null);
+  }, [parentActiveImageIndex, car?.id]);
 
   // Ensure scroll container starts at top on mount
   useEffect(() => {
@@ -485,14 +487,17 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
               <TurboImageSlider
                 key={`modal-slider-${car?.id}`}
                 images={imagesList}
-                activeImageIndex={activeImageIndex}
+                activeImageIndex={previewImageIndex !== null ? previewImageIndex : activeImageIndex}
                 onIndexChange={(idx) => {
+                  setPreviewImageIndex(null);
                   setActiveImageIndex(idx);
                   onParentActiveImageChange(idx);
                 }}
                 safeTitle={safeTitle}
                 onImageClick={(clickedIndex) => {
-                  const idx = typeof clickedIndex === 'number' ? clickedIndex : activeImageIndex;
+                  setPreviewImageIndex(null);
+                  const currentDisplayed = previewImageIndex !== null ? previewImageIndex : activeImageIndex;
+                  const idx = typeof clickedIndex === 'number' ? clickedIndex : currentDisplayed;
                   setActiveImageIndex(idx);
                   onParentActiveImageChange(idx);
                   openLightbox('detail', idx);
@@ -509,8 +514,18 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
                 images={imagesList}
                 activeImageIndex={activeImageIndex}
                 onSelectImage={(idx) => {
+                  setPreviewImageIndex(null);
                   setActiveImageIndex(idx);
                   onParentActiveImageChange(idx);
+                }}
+                onOpenLightboxAt={(idx) => {
+                  setPreviewImageIndex(null);
+                  setActiveImageIndex(idx);
+                  onParentActiveImageChange(idx);
+                  openLightbox('detail', idx);
+                }}
+                onHoverPreview={(idx) => {
+                  setPreviewImageIndex(idx);
                 }}
                 safeTitle={safeTitle}
               />

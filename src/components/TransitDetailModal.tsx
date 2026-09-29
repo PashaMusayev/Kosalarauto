@@ -21,6 +21,7 @@ import { DetailDesktopSidebar } from './detail/DetailDesktopSidebar';
 import { DetailMobileTitleBlock } from './detail/DetailMobileTitleBlock';
 import { DetailMobileSpecs } from './detail/DetailMobileSpecs';
 import { DetailSpecTable } from './detail/DetailSpecTable';
+import { DetailThumbnailStrip } from './detail/DetailThumbnailStrip';
 import { DetailFeaturesAndShowroom } from './detail/DetailFeaturesAndShowroom';
 import { DetailSimilarCars } from './detail/DetailSimilarCars';
 import { DetailMobileBottomBar } from './detail/DetailMobileBottomBar';
@@ -499,6 +500,19 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
                 onOpenPhotoGrid={openPhotoGrid}
                 disabledKeyNav={isLightboxOpen || isPhotoGridOpen}
                 className="w-full h-full aspect-[4/3] flex items-center justify-center bg-black"
+              />
+            </div>
+
+            {/* Desktop Thumbnail Strip (Turbo.az stili şəklin altında, yalnız Desktop) */}
+            <div className="hidden md:block">
+              <DetailThumbnailStrip
+                images={imagesList}
+                activeImageIndex={activeImageIndex}
+                onSelectImage={(idx) => {
+                  setActiveImageIndex(idx);
+                  onParentActiveImageChange(idx);
+                }}
+                safeTitle={safeTitle}
               />
             </div>
 

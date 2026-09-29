@@ -1329,7 +1329,7 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
                 e.stopPropagation();
                 onOpenPhotoGrid();
               }}
-              className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1.5 backdrop-blur-md bg-white/70 hover:bg-white/90 text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/20 transition-all cursor-pointer select-none active:scale-95 shadow-xs opacity-100 md:opacity-0 md:group-hover:opacity-100"
+              className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex md:hidden items-center gap-1.5 backdrop-blur-md bg-white/70 hover:bg-white/90 text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg border border-white/20 transition-all cursor-pointer select-none active:scale-95 shadow-xs"
               title="Bütün şəkillər"
               aria-label="Bütün şəkillər"
             >

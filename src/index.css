@@ -40,3 +40,12 @@ section[id], div[id], footer[id], main[id] { scroll-margin-top: 85px; }
 @media (max-width: 640px) {
   section[id], div[id], footer[id], main[id] { scroll-margin-top: 80px; }
 }
+
+/* Hide scrollbar for Chrome, Safari, Opera, Edge, Firefox */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

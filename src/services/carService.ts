@@ -3,6 +3,7 @@
  * Pure client module with NO static Supabase SDK dependencies.
  */
 import { TransitCar } from '../types';
+import { mapLegacyBadges, sanitizeStatusBadges } from '../data/badges';
 
 function normalizeBrand(brandRaw?: string, title?: string): string {
   const raw = (brandRaw || '').trim();
@@ -85,7 +86,8 @@ export function mapSupabaseRowToCar(row: Record<string, unknown>): TransitCar {
     fuelType: String(row.fuel_type ?? row.fuelType ?? specs.fuelType ?? '').trim(),
     condition: condition,
     vinCode: String(row.vin_code || row.vinCode || specs.vinCode || specs.vin_code || ''),
-    statusBadges: Array.isArray(row.badges) ? (row.badges as string[]) : (Array.isArray(row.statusBadges) ? (row.statusBadges as string[]) : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli']),
+    statusBadges: mapLegacyBadges(row.badges ?? row.statusBadges),
+    badges: mapLegacyBadges(row.badges ?? row.statusBadges),
     images: Array.isArray(row.images) ? (row.images as string[]) : (row.primary_image ? [String(row.primary_image)] : []),
     primaryImage: String(row.primary_image || row.primaryImage || ''),
     description: String(row.description || specs.description || ''),
@@ -132,7 +134,7 @@ export function mapCarToSupabaseRow(car: TransitCar): Record<string, unknown> {
     images: car.images || [],
     description: car.description || '',
     features: car.features || [],
-    badges: car.statusBadges || ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli'],
+    badges: sanitizeStatusBadges(car.statusBadges ?? car.badges),
     is_featured: Boolean(car.isFeatured),
     status: car.status === 'sold' ? 'sold' : 'active',
     specs: {

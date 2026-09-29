@@ -4,12 +4,14 @@ import { PHONE_NUMBER } from '../../data/transits';
 import whatsappLogo from '../../pics/whatsapp logo.png';
 import { trackWhatsAppClick } from '../../services/analyticsService';
 import { DetailShowroomInfo } from './DetailShowroomInfo';
+import { StatusBadges } from './StatusBadges';
 
 export interface DetailDesktopSidebarProps {
   safePrice: string;
   vehicleMainTitle: string;
   safeMileage: string;
   whatsappUrl: string;
+  statusBadges?: string[];
 }
 
 export const DetailDesktopSidebar: React.FC<DetailDesktopSidebarProps> = ({
@@ -17,6 +19,7 @@ export const DetailDesktopSidebar: React.FC<DetailDesktopSidebarProps> = ({
   vehicleMainTitle,
   safeMileage,
   whatsappUrl,
+  statusBadges,
 }) => {
   return (
     <div className="hidden md:flex md:w-[42%] lg:w-[40%] flex-col p-3.5 lg:p-5 md:sticky md:top-0 md:self-start z-10">
@@ -37,17 +40,7 @@ export const DetailDesktopSidebar: React.FC<DetailDesktopSidebarProps> = ({
               {safeMileage} km
             </div>
           ) : null}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-              Gömrük olunub
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-              Azərbaycanda sürülməyib
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-              Vuruqsuz və rəngsiz
-            </span>
-          </div>
+          <StatusBadges badges={statusBadges} className="mt-2 flex flex-wrap items-center gap-1.5" />
         </div>
 
         {/* 3. "Zəng et" və "WhatsApp ilə yaz" Düymələri */}

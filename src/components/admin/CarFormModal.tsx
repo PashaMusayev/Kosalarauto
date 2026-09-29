@@ -11,7 +11,8 @@ import {
   Star, 
   Check, 
   RefreshCw, 
-  Save 
+  Save,
+  ShieldCheck
 } from 'lucide-react';
 import { 
   FormImageItem, 
@@ -24,6 +25,7 @@ import {
 } from './adminTypes';
 import { ImageUploader } from './ImageUploader';
 import { STORAGE_BUCKET_NAME } from '../../services/supabaseClientInit';
+import { CanonicalBadge, CANONICAL_STATUS_BADGES } from '../../data/badges';
 
 interface CarFormModalProps {
   isOpen: boolean;
@@ -76,6 +78,8 @@ interface CarFormModalProps {
   setCarStatus: (val: 'active' | 'sold') => void;
   isFeatured: boolean;
   setIsFeatured: (val: boolean) => void;
+  selectedStatusBadges: CanonicalBadge[];
+  toggleStatusBadgeInForm: (badge: CanonicalBadge) => void;
   selectedFeatures: string[];
   toggleFeatureInForm: (feat: string) => void;
   selectAllFeatures: () => void;
@@ -154,6 +158,8 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
   setCarStatus,
   isFeatured,
   setIsFeatured,
+  selectedStatusBadges,
+  toggleStatusBadgeInForm,
   selectedFeatures,
   toggleFeatureInForm,
   selectAllFeatures,
@@ -712,6 +718,51 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
 
             {/* TAB 2: TƏCHİZAT VƏ STATUS */}
             <div className={activeModalTab === 'features' ? 'space-y-4 sm:space-y-6 block' : 'hidden'}>
+              {/* SECTION: STATUS NİŞANLARI (MULTI-SELECT) */}
+              <div className="bg-slate-950 p-4 sm:p-5 rounded-xl border border-slate-800 space-y-3.5">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                    <div>
+                      <h4 className="font-black text-white text-sm tracking-wide">
+                        Status nişanları (Qiymətin altında)
+                      </h4>
+                      <p className="text-[11px] text-slate-400">
+                        Elanın əsas kartında və detal pəncərəsində görünəcək rəsmi nişanları seçin.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-black bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 px-2.5 py-0.5 rounded-full">
+                    {selectedStatusBadges.length} seçilib
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  {CANONICAL_STATUS_BADGES.map((badge) => {
+                    const isChecked = selectedStatusBadges.includes(badge);
+                    return (
+                      <button
+                        key={badge}
+                        type="button"
+                        onClick={() => toggleStatusBadgeInForm(badge)}
+                        className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-left transition-all ${
+                          isChecked
+                            ? 'bg-emerald-950/40 text-white font-bold border-emerald-500/60 shadow-xs ring-1 ring-emerald-500/30'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
+                          isChecked ? 'bg-emerald-600 border-emerald-500 text-white' : 'border-slate-600 bg-slate-800'
+                        }`}>
+                          {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                        </div>
+                        <span className="text-xs font-semibold">{badge}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* SECTION 4: SATIŞ STATUSU VƏ VİTRİN SEÇİMİ */}
               <div className="bg-slate-950 p-4 sm:p-5 rounded-xl border border-slate-800 space-y-3.5">
                 <h4 className="text-xs font-black text-emerald-400 tracking-wider border-b border-slate-800 pb-2.5">

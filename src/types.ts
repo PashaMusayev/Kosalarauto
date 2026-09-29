@@ -26,6 +26,7 @@ export interface TransitCar {
   condition?: string;
   vinCode?: string;
   statusBadges?: string[];
+  badges?: string[];
   images: string[];
   primaryImage: string;
   description: string;

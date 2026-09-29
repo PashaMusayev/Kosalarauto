@@ -18,7 +18,7 @@ export const INITIAL_TRANSITS: TransitCar[] = [
     fuelType: 'Dizel',
     vinCode: 'WF0XXXTTFXCY12984',
     location: 'Bakı, Yeni Günəşli',
-    statusBadges: ['Əla vuruqsuz', 'Texniki baxışdan keçib', 'Gömrük olunub', 'Zəmanətli'],
+    statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/pics/ford_transit_hero.jpg',
     images: [
       '/pics/ford_transit_hero.jpg'
@@ -54,7 +54,7 @@ export const INITIAL_TRANSITS: TransitCar[] = [
     fuelType: 'Dizel',
     vinCode: 'WDB9066331S194827',
     location: 'Bakı, Yeni Günəşli',
-    statusBadges: ['Vuruqsuz Rəngsiz', 'Kondisionerli', 'Gömrük olunub', 'Zəmanətli'],
+    statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/pics/mercedes sprinter/msponyan.jpeg',
     images: [
       '/pics/mercedes sprinter/msponyan.jpeg',

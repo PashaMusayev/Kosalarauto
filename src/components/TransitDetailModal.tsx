@@ -530,6 +530,7 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
             vehicleMainTitle={vehicleMainTitle}
             safeMileage={safeMileage}
             whatsappUrl={whatsappUrl}
+            statusBadges={car?.statusBadges ?? car?.badges}
           />
         </div>
 
@@ -544,6 +545,7 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
                   safePrice={safePrice}
                   vehicleMainTitle={vehicleMainTitle}
                   safeMileage={safeMileage}
+                  statusBadges={car?.statusBadges ?? car?.badges}
                 />
 
                 {/* 2. XÜSUSİYYƏTLƏR CƏDVƏLİ (YALNIZ MOBİLDƏ GÖSTƏRİLİR - TURBO.AZ STİLİ) */}

@@ -46,6 +46,7 @@ import { ThumbnailBackfillModal } from './admin/ThumbnailBackfillModal';
 import { useAdminAuth } from './admin/useAdminAuth';
 import { useCarImages } from './admin/useCarImages';
 import { useSupabaseSettings } from './admin/useSupabaseSettings';
+import { CanonicalBadge, mapLegacyBadges } from '../data/badges';
 
 interface AdminModalProps {
   isOpen: boolean;
@@ -247,6 +248,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [description, setDescription] = useState('');
   const [isFeatured, setIsFeatured] = useState(false);
   const [carStatus, setCarStatus] = useState<'active' | 'sold'>('active');
+  const [selectedStatusBadges, setSelectedStatusBadges] = useState<CanonicalBadge[]>([]);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
   const [customFeatureInput, setCustomFeatureInput] = useState('');
 
@@ -272,6 +274,12 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     handleAddImageUrl,
     handleFileUpload
   } = useCarImages(showToast);
+
+  const toggleStatusBadgeInForm = (badge: CanonicalBadge) => {
+    setSelectedStatusBadges(prev => 
+      prev.includes(badge) ? prev.filter(b => b !== badge) : [...prev, badge]
+    );
+  };
 
   const toggleFeatureInForm = (feat: string) => {
     setSelectedFeatures(prev => 
@@ -320,6 +328,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setDescription('');
     setIsFeatured(false);
     setCarStatus('active');
+    setSelectedStatusBadges([]);
     setSelectedFeatures([]);
     setImagesList([]);
     setPrimaryImage('');
@@ -357,6 +366,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setDescription(car.description || '');
     setIsFeatured(!!car.isFeatured);
     setCarStatus(car.status === 'sold' ? 'sold' : 'active');
+    setSelectedStatusBadges(mapLegacyBadges(car.statusBadges ?? car.badges));
     setSelectedFeatures(Array.isArray(car.features) ? [...car.features] : []);
     
     const imgs = Array.isArray(car.images) && car.images.length > 0 ? [...car.images] : (car.primaryImage ? [car.primaryImage] : []);
@@ -599,7 +609,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         images: finalImageUrls.length > 0 ? finalImageUrls : (currentPrimary ? [currentPrimary] : []),
         description: description.trim(),
         features: selectedFeatures,
-        statusBadges: ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli'],
+        statusBadges: selectedStatusBadges,
+        badges: selectedStatusBadges,
         isFeatured,
         status: carStatus,
         specs: {
@@ -844,6 +855,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           setCarStatus={setCarStatus}
           isFeatured={isFeatured}
           setIsFeatured={setIsFeatured}
+          selectedStatusBadges={selectedStatusBadges}
+          toggleStatusBadgeInForm={toggleStatusBadgeInForm}
           selectedFeatures={selectedFeatures}
           toggleFeatureInForm={toggleFeatureInForm}
           selectAllFeatures={selectAllFeatures}

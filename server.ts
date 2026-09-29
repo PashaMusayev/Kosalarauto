@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { mapLegacyBadges, sanitizeStatusBadges } from './src/data/badges';
 
 const getDirname = () => {
   if (typeof __dirname !== 'undefined') return __dirname;
@@ -220,10 +221,7 @@ function validateAndSanitizeCars(cars: unknown[]): { valid: boolean; error?: str
       : (typeof c.primary_image === 'string' && c.primary_image.trim().length > 0 ? c.primary_image.slice(0, 2000) : (images[0] || ''));
 
     const rawBadges = Array.isArray(c.statusBadges) ? c.statusBadges : Array.isArray(c.badges) ? c.badges : [];
-    const statusBadges = (rawBadges as unknown[])
-      .filter((b: unknown): b is string => typeof b === 'string' && b.trim().length > 0)
-      .map(b => String(b).slice(0, 100))
-      .slice(0, 20);
+    const statusBadges = sanitizeStatusBadges(rawBadges);
 
     // Flexible features validation (supports array of strings or key-value object)
     let features: string[] | Record<string, unknown> = [];
@@ -351,7 +349,7 @@ const DEFAULT_SERVER_CARS = [
     fuelType: 'Dizel',
     vinCode: 'WF0XXXTTFXCY12984',
     location: 'Bakı, Yeni Günəşli',
-    statusBadges: ['Əla vuruqsuz', 'Texniki baxışdan keçib', 'Gömrük olunub', 'Zəmanətli'],
+    statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/images/ford_transit_hero.jpg',
     images: [
       '/images/ford_transit_hero.jpg'
@@ -386,7 +384,7 @@ const DEFAULT_SERVER_CARS = [
     fuelType: 'Dizel',
     vinCode: 'WDB9066331S194827',
     location: 'Bakı, Yeni Günəşli',
-    statusBadges: ['Vuruqsuz Rəngsiz', 'Kondisionerli', 'Gömrük olunub', 'Zəmanətli'],
+    statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/pics/mercedes sprinter/msponyan.jpeg',
     images: [
       '/pics/mercedes sprinter/msponyan.jpeg',
@@ -516,8 +514,8 @@ function getSanitizedCarsForInjection(): Record<string, unknown>[] | null {
         images: Array.isArray(car.images) ? car.images : [],
         description: String(car.description || ''),
         features: Array.isArray(car.features) ? car.features : [],
-        statusBadges: Array.isArray(car.statusBadges) ? car.statusBadges : (Array.isArray(car.badges) ? car.badges : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli']),
-        badges: Array.isArray(car.statusBadges) ? car.statusBadges : (Array.isArray(car.badges) ? car.badges : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli']),
+        statusBadges: mapLegacyBadges(car.statusBadges ?? car.badges),
+        badges: mapLegacyBadges(car.statusBadges ?? car.badges),
         isFeatured: Boolean(car.isFeatured),
         status: car.status === 'sold' ? 'sold' : 'active',
         specs: (typeof car.specs === 'object' && car.specs !== null) ? car.specs : undefined
@@ -595,8 +593,8 @@ function formatSupabaseCarRow(row: Record<string, any>): Record<string, unknown>
     images: Array.isArray(row.images) ? row.images : (row.primary_image ? [String(row.primary_image)] : []),
     description: String(row.description || specs.description || ''),
     features: Array.isArray(row.features) ? row.features : (Array.isArray(specs.features) ? specs.features : []),
-    statusBadges: Array.isArray(row.badges) ? row.badges : (Array.isArray(row.statusBadges) ? row.statusBadges : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli']),
-    badges: Array.isArray(row.badges) ? row.badges : (Array.isArray(row.statusBadges) ? row.statusBadges : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli']),
+    statusBadges: mapLegacyBadges(row.badges ?? row.statusBadges),
+    badges: mapLegacyBadges(row.badges ?? row.statusBadges),
     isFeatured: Boolean(row.is_featured ?? row.isFeatured ?? specs.isFeatured),
     status: row.status === 'sold' ? 'sold' : 'active',
     specs: specs
@@ -643,7 +641,7 @@ function mapSanitizedCarToSupabaseRow(c: Record<string, unknown>): Record<string
     images: Array.isArray(c.images) ? c.images : (primaryImage ? [primaryImage] : []),
     description: c.description || '',
     features: Array.isArray(c.features) ? c.features : [],
-    badges: Array.isArray(c.statusBadges || c.badges) ? (c.statusBadges || c.badges) : ['Vuruqsuz', 'Gömrük olunub', 'Zəmanətli'],
+    badges: sanitizeStatusBadges(c.statusBadges ?? c.badges),
     is_featured: Boolean(c.isFeatured),
     status: c.status === 'sold' ? 'sold' : 'active',
     specs: (typeof c.specs === 'object' && c.specs !== null) ? {

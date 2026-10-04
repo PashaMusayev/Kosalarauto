@@ -459,6 +459,93 @@ function saveCarsToDisk(cars: unknown[]) {
   }
 }
 
+// Storage Migration Log persistence (tracks files migrated within last 24 hours for safety grace period)
+const MIGRATION_LOG_FILE = path.join(DATA_DIR, 'storage_migration_log.json');
+
+function loadMigrationLog(): Record<string, number> {
+  try {
+    if (fs.existsSync(MIGRATION_LOG_FILE)) {
+      const raw = fs.readFileSync(MIGRATION_LOG_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        return parsed as Record<string, number>;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read storage_migration_log.json:', err);
+  }
+  return {};
+}
+
+function saveMigrationLog(log: Record<string, number>) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(MIGRATION_LOG_FILE, JSON.stringify(log, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not save storage_migration_log.json:', err);
+  }
+}
+
+interface StorageFileInfo {
+  name: string;
+  path: string;
+  size: number;
+  updatedAt: string;
+}
+
+/**
+ * Lists ALL objects in the Supabase Storage bucket, paginating through both direct files
+ * and per-car subfolders (cars/{carId}/...).
+ */
+async function listAllBucketFiles(supabase: SupabaseClient, bucket: string): Promise<StorageFileInfo[]> {
+  const result: StorageFileInfo[] = [];
+  const limit = 100;
+
+  // 1. List objects inside 'cars' folder
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase.storage.from(bucket).list('cars', { limit, offset });
+    if (error || !data || data.length === 0) break;
+
+    for (const item of data) {
+      if (item.id === null) {
+        // Subfolder: cars/{carId}
+        const subfolder = item.name;
+        let subOffset = 0;
+        while (true) {
+          const { data: subData, error: subErr } = await supabase.storage.from(bucket).list(`cars/${subfolder}`, { limit, offset: subOffset });
+          if (subErr || !subData || subData.length === 0) break;
+          for (const subItem of subData) {
+            result.push({
+              name: subItem.name,
+              path: `cars/${subfolder}/${subItem.name}`,
+              size: subItem.metadata?.size || 0,
+              updatedAt: subItem.updated_at || subItem.created_at || (subItem.metadata?.lastModified as string) || ''
+            });
+          }
+          if (subData.length < limit) break;
+          subOffset += limit;
+        }
+      } else {
+        // Direct file in cars/
+        result.push({
+          name: item.name,
+          path: `cars/${item.name}`,
+          size: item.metadata?.size || 0,
+          updatedAt: item.updated_at || item.created_at || (item.metadata?.lastModified as string) || ''
+        });
+      }
+    }
+
+    if (data.length < limit) break;
+    offset += limit;
+  }
+
+  return result;
+}
+
 /**
  * XSS-safe JSON serialization for script tag embedding.
  * Escapes <, >, &, U+2028, and U+2029 to prevent script break-out.
@@ -1232,6 +1319,25 @@ async function startServer() {
         }
       }
 
+      // Additionally delete everything remaining under the prefix cars/{carId}/ so nothing is left behind
+      try {
+        let folderOffset = 0;
+        const folderLimit = 100;
+        while (true) {
+          const { data: folderFiles, error: listErr } = await supabase.storage
+            .from(STORAGE_BUCKET_NAME)
+            .list(`cars/${carId}`, { limit: folderLimit, offset: folderOffset });
+          if (listErr || !folderFiles || folderFiles.length === 0) break;
+          const toRemove = folderFiles.map(f => `cars/${carId}/${f.name}`);
+          await supabase.storage.from(STORAGE_BUCKET_NAME).remove(toRemove).catch(() => {});
+          await supabase.storage.from('CAR-IMAGES').remove(toRemove).catch(() => {});
+          if (folderFiles.length < folderLimit) break;
+          folderOffset += folderLimit;
+        }
+      } catch (purgeErr) {
+        console.warn(`Could not purge folder cars/${carId}:`, purgeErr);
+      }
+
       // Atomic delete of targeted DB row
       const { error: sbErr } = await supabase.from('cars').delete().eq('id', carId);
       if (sbErr) {
@@ -1390,9 +1496,34 @@ async function startServer() {
       }
 
       let storagePath: string;
+      const requestedCarId = typeof req.body.carId === 'string' && req.body.carId.trim()
+        ? req.body.carId.trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100)
+        : null;
+
       if (clientStoragePath && typeof clientStoragePath === 'string') {
-        const cleanPath = clientStoragePath.replace(/[^a-zA-Z0-9._/-]/g, '_').replace(/\.\./g, '');
-        storagePath = cleanPath.startsWith('cars/') ? cleanPath : `cars/${cleanPath}`;
+        const cleanRaw = clientStoragePath.replace(/\\/g, '/').trim();
+        // Allow exactly one subfolder level under cars/: cars/{carId}/{fileName}
+        // or flat legacy: cars/{fileName}
+        const twoLevelMatch = cleanRaw.match(/^cars\/([a-zA-Z0-9_-]{1,100})\/([a-zA-Z0-9._-]{1,200})$/i);
+        const flatMatch = cleanRaw.match(/^cars\/([a-zA-Z0-9._-]{1,200})$/i);
+        const directSubMatch = cleanRaw.match(/^([a-zA-Z0-9_-]{1,100})\/([a-zA-Z0-9._-]{1,200})$/i);
+
+        if (twoLevelMatch) {
+          storagePath = `cars/${twoLevelMatch[1]}/${twoLevelMatch[2]}`;
+        } else if (directSubMatch) {
+          storagePath = `cars/${directSubMatch[1]}/${directSubMatch[2]}`;
+        } else if (requestedCarId) {
+          const leaf = path.basename(cleanRaw).replace(/[^a-zA-Z0-9._-]/g, '_');
+          storagePath = `cars/${requestedCarId}/${leaf}`;
+        } else if (flatMatch) {
+          storagePath = `cars/${flatMatch[1]}`;
+        } else {
+          const cleanName = filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '_') : `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
+          storagePath = requestedCarId ? `cars/${requestedCarId}/${cleanName}` : `cars/${Date.now()}_${cleanName}`;
+        }
+      } else if (requestedCarId) {
+        const cleanName = filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '_') : `img_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${extension}`;
+        storagePath = `cars/${requestedCarId}/${cleanName}`;
       } else if (exactFilename && filename && typeof filename === 'string') {
         const cleanName = filename.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/\.\./g, '');
         storagePath = `cars/${cleanName}`;
@@ -1422,24 +1553,7 @@ async function startServer() {
             }
           } else {
             lastUploadError = upErr;
-            console.warn(`Supabase storage upload error on ${STORAGE_BUCKET_NAME}:`, upErr.message);
-            // Secondary attempt with leaf name directly
-            const leafName = path.basename(storagePath);
-            const { error: retryErr } = await supabase.storage
-              .from(STORAGE_BUCKET_NAME)
-              .upload(leafName, buffer, {
-                contentType,
-                upsert: true
-              });
-            if (!retryErr) {
-              const { data: fbData } = supabase.storage.from(STORAGE_BUCKET_NAME).getPublicUrl(leafName);
-              if (fbData?.publicUrl) {
-                res.json({ url: fbData.publicUrl, success: true, storage: 'supabase' });
-                return;
-              }
-            } else {
-              lastUploadError = retryErr;
-            }
+            console.warn(`Supabase storage upload error on ${STORAGE_BUCKET_NAME} (${storagePath}):`, upErr.message);
           }
         } catch (sbStorageErr) {
           lastUploadError = sbStorageErr;
@@ -1453,6 +1567,423 @@ async function startServer() {
     } catch (err: unknown) {
       console.error('Image upload failed:', err);
       res.status(500).json({ error: 'Şəkil yüklənmədi' });
+    }
+  });
+
+  // Protected: Storage Migration endpoint (organize into cars/{carId}/ folder structure)
+  app.post('/api/admin/storage/migrate', requireAdminAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    const dryRun = req.body?.dryRun !== false;
+    const targetCarId = typeof req.body?.carId === 'string' && req.body.carId.trim()
+      ? req.body.carId.trim().replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100)
+      : null;
+
+    const supabase = getServerSupabase();
+    if (!supabase) {
+      res.status(502).json({ success: false, error: 'Məlumat bazasına qoşulmaq mümkün olmadı. Supabase konfiqurasiyasını yoxlayın.' });
+      return;
+    }
+
+    try {
+      // 1. Fetch cars from Supabase
+      let query = supabase.from('cars').select('*');
+      if (targetCarId) {
+        query = query.eq('id', targetCarId);
+      } else {
+        query = query.order('created_at', { ascending: false });
+      }
+
+      const { data: dbCars, error: fetchErr } = await query;
+      if (fetchErr || !dbCars) {
+        res.status(500).json({ success: false, error: `Məlumat bazasından avtomobillər oxunmadı: ${fetchErr?.message}` });
+        return;
+      }
+
+      // Pre-list all storage files to build index of existing files and sizes
+      const allFiles = await listAllBucketFiles(supabase, STORAGE_BUCKET_NAME);
+      const filesMap = new Map<string, StorageFileInfo>();
+      for (const f of allFiles) {
+        filesMap.set(f.path, f);
+      }
+
+      const migrationLog = loadMigrationLog();
+
+      interface PlannedFileMove {
+        oldPath: string;
+        newPath: string;
+        isThumbnail: boolean;
+        size: number;
+        exists: boolean;
+      }
+
+      interface PlannedCarMigration {
+        carId: string;
+        carTitle: string;
+        files: PlannedFileMove[];
+        alreadyMigrated: boolean;
+      }
+
+      const plannedCars: PlannedCarMigration[] = [];
+      let totalFilesToCopy = 0;
+      let totalSizeBytes = 0;
+
+      for (const carRow of dbCars) {
+        const carId = String(carRow.id);
+        const carTitle = String(carRow.title || `${carRow.brand || ''} ${carRow.model || ''}`).trim();
+        const primaryImg = typeof carRow.primary_image === 'string' ? carRow.primary_image.trim() : '';
+        const rawImgs = Array.isArray(carRow.images) ? (carRow.images as string[]) : [];
+        const allImgUrls = Array.from(new Set([primaryImg, ...rawImgs].filter(Boolean)));
+
+        const carPlannedFiles: PlannedFileMove[] = [];
+
+        for (const imgUrl of allImgUrls) {
+          const match = imgUrl.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/[^/?#]+\/(.+)$/i);
+          const currentPath = match ? decodeURIComponent(match[1]) : (imgUrl.startsWith('cars/') ? imgUrl : null);
+          if (!currentPath) continue;
+
+          // Check if already in cars/{carId}/
+          if (currentPath.startsWith(`cars/${carId}/`)) {
+            continue; // Already organized
+          }
+
+          const fileName = path.basename(currentPath);
+          const newPath = `cars/${carId}/${fileName}`;
+          const fileInfo = filesMap.get(currentPath);
+          const exists = Boolean(fileInfo);
+          const size = fileInfo?.size || 0;
+
+          carPlannedFiles.push({
+            oldPath: currentPath,
+            newPath,
+            isThumbnail: currentPath.includes('__thumb.'),
+            size,
+            exists
+          });
+
+          // Also check companion thumbnail
+          if (!currentPath.includes('__thumb.')) {
+            const dot = currentPath.lastIndexOf('.');
+            if (dot !== -1) {
+              const oldThumbPath = `${currentPath.substring(0, dot)}__thumb.webp`;
+              const newThumbPath = `cars/${carId}/${path.basename(currentPath.substring(0, dot))}__thumb.webp`;
+              const thumbInfo = filesMap.get(oldThumbPath);
+              if (thumbInfo) {
+                carPlannedFiles.push({
+                  oldPath: oldThumbPath,
+                  newPath: newThumbPath,
+                  isThumbnail: true,
+                  size: thumbInfo.size,
+                  exists: true
+                });
+              }
+            }
+          }
+        }
+
+        if (carPlannedFiles.length > 0) {
+          plannedCars.push({
+            carId,
+            carTitle,
+            files: carPlannedFiles,
+            alreadyMigrated: false
+          });
+          for (const f of carPlannedFiles) {
+            totalFilesToCopy++;
+            totalSizeBytes += f.size;
+          }
+        } else {
+          plannedCars.push({
+            carId,
+            carTitle,
+            files: [],
+            alreadyMigrated: true
+          });
+        }
+      }
+
+      // If DRY RUN: return the planned moves without changing anything
+      if (dryRun) {
+        res.json({
+          success: true,
+          dryRun: true,
+          totalCars: plannedCars.filter(c => !c.alreadyMigrated).length,
+          alreadyMigratedCars: plannedCars.filter(c => c.alreadyMigrated).length,
+          totalFiles: totalFilesToCopy,
+          totalSizeBytes,
+          plannedCars: plannedCars.filter(c => !c.alreadyMigrated)
+        });
+        return;
+      }
+
+      // REAL RUN: Copy files sequentially per car, verify, and update car row
+      let carsMigrated = 0;
+      let filesCopied = 0;
+      const failures: { carId: string; error: string }[] = [];
+
+      for (const planned of plannedCars) {
+        if (planned.alreadyMigrated || planned.files.length === 0) continue;
+
+        const carRow = dbCars.find(c => String(c.id) === planned.carId);
+        if (!carRow) continue;
+
+        let carFailed = false;
+        let carFailReason = '';
+        const urlReplacements = new Map<string, string>();
+
+        for (const fileMove of planned.files) {
+          // If the file is a thumbnail and didn't exist in storage, skip copying it
+          if (fileMove.isThumbnail && !fileMove.exists) {
+            continue;
+          }
+
+          // 1. COPY to cars/{carId}/{fileName}
+          // If already exists at destination, that's fine
+          let copied = false;
+          if (filesMap.has(fileMove.newPath)) {
+            copied = true;
+          } else {
+            const { error: copyErr } = await supabase.storage
+              .from(STORAGE_BUCKET_NAME)
+              .copy(fileMove.oldPath, fileMove.newPath);
+
+            if (!copyErr) {
+              copied = true;
+            } else {
+              // Check if error was because destination already exists
+              if (copyErr.message && (copyErr.message.includes('already exists') || copyErr.message.includes('Duplicate'))) {
+                copied = true;
+              } else if (fileMove.isThumbnail) {
+                // Non-fatal if thumbnail missing
+                console.warn(`Thumbnail copy warning (${fileMove.oldPath} -> ${fileMove.newPath}):`, copyErr.message);
+              } else {
+                carFailed = true;
+                carFailReason = `Fayl köçürülə bilmədi (${fileMove.oldPath}): ${copyErr.message}`;
+                break;
+              }
+            }
+          }
+
+          if (copied) {
+            filesCopied++;
+            filesMap.set(fileMove.newPath, {
+              name: path.basename(fileMove.newPath),
+              path: fileMove.newPath,
+              size: fileMove.size,
+              updatedAt: new Date().toISOString()
+            });
+
+            // Map old URL to new URL
+            const { data: pubData } = supabase.storage
+              .from(STORAGE_BUCKET_NAME)
+              .getPublicUrl(fileMove.newPath);
+
+            if (pubData?.publicUrl) {
+              const originalCarImgs = [carRow.primary_image, ...(Array.isArray(carRow.images) ? carRow.images : [])];
+              for (const origUrl of originalCarImgs) {
+                if (typeof origUrl === 'string' && origUrl.includes(fileMove.oldPath)) {
+                  urlReplacements.set(origUrl, pubData.publicUrl);
+                }
+              }
+            }
+
+            // Record oldPath in migration log for 24h grace period
+            migrationLog[fileMove.oldPath] = Date.now();
+          }
+        }
+
+        if (carFailed) {
+          failures.push({ carId: planned.carId, error: carFailReason });
+          console.error(`Car ${planned.carId} migration failed:`, carFailReason);
+          // Do NOT update DB for this car
+          continue;
+        }
+
+        // 3. Update car row in Supabase DB with new URLs (preserve order exactly)
+        const oldPrimary = typeof carRow.primary_image === 'string' ? carRow.primary_image : '';
+        const newPrimary = urlReplacements.get(oldPrimary) || oldPrimary;
+
+        const oldImages = Array.isArray(carRow.images) ? (carRow.images as string[]) : [];
+        const newImages = oldImages.map(img => urlReplacements.get(img) || img);
+
+        const { error: updateErr } = await supabase
+          .from('cars')
+          .update({
+            primary_image: newPrimary,
+            images: newImages,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', planned.carId);
+
+        if (updateErr) {
+          failures.push({ carId: planned.carId, error: `DB yenilənmədi: ${updateErr.message}` });
+          console.error(`Failed to update DB for car ${planned.carId}:`, updateErr.message);
+        } else {
+          carsMigrated++;
+        }
+      }
+
+      // Save migration log
+      saveMigrationLog(migrationLog);
+
+      // 4. Refresh authoritative disk cache
+      const authoritativeCars = await refreshDiskCacheFromSupabase(supabase);
+
+      res.json({
+        success: true,
+        dryRun: false,
+        carsMigrated,
+        filesCopied,
+        failures,
+        totalCarsPlanned: plannedCars.filter(c => !c.alreadyMigrated).length,
+        cars: authoritativeCars
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Migrasiya zamanı xəta baş verdi';
+      console.error('Storage migration error:', err);
+      res.status(500).json({ success: false, error: msg });
+    }
+  });
+
+  // Protected: Storage Cleanup endpoint (orphans and migrated originals after 24h grace period)
+  app.post('/api/admin/storage/cleanup', requireAdminAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    const dryRun = req.body?.dryRun !== false;
+
+    const supabase = getServerSupabase();
+    if (!supabase) {
+      res.status(502).json({ success: false, error: 'Məlumat bazasına qoşulmaq mümkün olmadı. Supabase konfiqurasiyasını yoxlayın.' });
+      return;
+    }
+
+    try {
+      // 1. Build set of ALL referenced files by any car (full images + thumbnails)
+      const { data: dbCars, error: fetchErr } = await supabase
+        .from('cars')
+        .select('id, primary_image, images');
+
+      if (fetchErr || !dbCars) {
+        res.status(500).json({ success: false, error: `Məlumat bazasından avtomobillər oxunmadı: ${fetchErr?.message}` });
+        return;
+      }
+
+      const referencedPaths = new Set<string>();
+
+      for (const car of dbCars) {
+        const allImgs = [car.primary_image, ...(Array.isArray(car.images) ? car.images : [])];
+        for (const imgUrl of allImgs) {
+          if (!imgUrl || typeof imgUrl !== 'string') continue;
+          const match = imgUrl.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/[^/?#]+\/(.+)$/i);
+          if (match && match[1]) {
+            const p = decodeURIComponent(match[1]);
+            referencedPaths.add(p);
+            if (p.startsWith('cars/')) referencedPaths.add(p.replace(/^cars\//, ''));
+            else referencedPaths.add(`cars/${p}`);
+
+            // Companion thumbnail
+            if (!p.includes('__thumb.')) {
+              const dot = p.lastIndexOf('.');
+              if (dot !== -1) {
+                const thumbP = `${p.substring(0, dot)}__thumb.webp`;
+                referencedPaths.add(thumbP);
+                if (thumbP.startsWith('cars/')) referencedPaths.add(thumbP.replace(/^cars\//, ''));
+                else referencedPaths.add(`cars/${thumbP}`);
+              }
+            }
+          } else if (imgUrl.startsWith('cars/')) {
+            referencedPaths.add(imgUrl);
+            referencedPaths.add(imgUrl.replace(/^cars\//, ''));
+            if (!imgUrl.includes('__thumb.')) {
+              const dot = imgUrl.lastIndexOf('.');
+              if (dot !== -1) {
+                const thumbP = `${imgUrl.substring(0, dot)}__thumb.webp`;
+                referencedPaths.add(thumbP);
+                referencedPaths.add(thumbP.replace(/^cars\//, ''));
+              }
+            }
+          }
+        }
+      }
+
+      // 2. List ALL objects in the bucket (paginating cars and subfolders)
+      const allFiles = await listAllBucketFiles(supabase, STORAGE_BUCKET_NAME);
+      const migrationLog = loadMigrationLog();
+
+      const now = Date.now();
+      const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
+      const eligibleForCleanup: StorageFileInfo[] = [];
+      let protectedRecentCount = 0;
+      let protectedReferencedCount = 0;
+
+      for (const file of allFiles) {
+        // A. Is it referenced?
+        if (referencedPaths.has(file.path) || referencedPaths.has(file.path.replace(/^cars\//, ''))) {
+          protectedReferencedCount++;
+          continue; // NEVER delete referenced file
+        }
+
+        // B. Was it modified / created in the last 24 hours?
+        if (file.updatedAt) {
+          const fileTime = new Date(file.updatedAt).getTime();
+          if (!isNaN(fileTime) && (now - fileTime < TWENTY_FOUR_HOURS_MS)) {
+            protectedRecentCount++;
+            continue; // Grace period / uploads in progress
+          }
+        }
+
+        // C. Was it migrated in the last 24 hours (recorded in migrationLog)?
+        const migratedAt = migrationLog[file.path] || migrationLog[file.path.replace(/^cars\//, '')];
+        if (migratedAt && (now - migratedAt < TWENTY_FOUR_HOURS_MS)) {
+          protectedRecentCount++;
+          continue; // Grace period after migration
+        }
+
+        eligibleForCleanup.push(file);
+      }
+
+      const totalSizeBytes = eligibleForCleanup.reduce((acc, f) => acc + f.size, 0);
+
+      // DRY RUN: Show plan
+      if (dryRun) {
+        res.json({
+          success: true,
+          dryRun: true,
+          unreferencedCount: eligibleForCleanup.length,
+          totalSizeBytes,
+          protectedRecentCount,
+          protectedReferencedCount,
+          sample: eligibleForCleanup.slice(0, 50).map(f => f.path)
+        });
+        return;
+      }
+
+      // REAL RUN: Delete eligible unreferenced files in batches of 100
+      let deletedCount = 0;
+      const batchSize = 100;
+      for (let i = 0; i < eligibleForCleanup.length; i += batchSize) {
+        const batch = eligibleForCleanup.slice(i, i + batchSize).map(f => f.path);
+        const { error: delErr } = await supabase.storage
+          .from(STORAGE_BUCKET_NAME)
+          .remove(batch);
+
+        if (!delErr) {
+          deletedCount += batch.length;
+        } else {
+          console.warn('Cleanup remove batch warning:', delErr.message);
+        }
+      }
+
+      res.json({
+        success: true,
+        dryRun: false,
+        deletedCount,
+        totalSizeBytes,
+        message: `${deletedCount} ədəd istifadə olunmayan fayl uğurla silindi.`
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Təmizləmə zamanı xəta baş verdi';
+      console.error('Storage cleanup error:', err);
+      res.status(500).json({ success: false, error: msg });
     }
   });
 

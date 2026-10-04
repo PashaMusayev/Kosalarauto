@@ -43,6 +43,7 @@ import { CarList } from './admin/CarList';
 import { CarFormModal } from './admin/CarFormModal';
 import { SupabaseSettingsModal, RlsModal } from './admin/AdminModals';
 import { ThumbnailBackfillModal } from './admin/ThumbnailBackfillModal';
+import { StorageManagerModal } from './admin/StorageManagerModal';
 import { useAdminAuth } from './admin/useAdminAuth';
 import { useCarImages } from './admin/useCarImages';
 import { useSupabaseSettings } from './admin/useSupabaseSettings';
@@ -77,6 +78,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const { isAuthenticated, setIsAuthenticated, handleLogout } = useAdminAuth(isOpen, showToast);
 
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
+  const [showStorageManagerModal, setShowStorageManagerModal] = useState(false);
 
   // Supabase Settings Hook
   const {
@@ -219,6 +221,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   // Car Edit / Add Form State
   const [isEditingModalOpen, setIsEditingModalOpen] = useState(false);
   const [editingCarId, setEditingCarId] = useState<string | null>(null);
+  const [activeFormCarId, setActiveFormCarId] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveProgress, setSaveProgress] = useState<SaveProgressState>({
@@ -309,6 +312,8 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const openAddCar = () => {
     cleanupBlobUrls(imagesList);
+    const newCarId = `car-${Date.now()}`;
+    setActiveFormCarId(newCarId);
     setEditingCarId(null);
     setSaveError(null);
     setTitle('');
@@ -343,6 +348,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const openEditCar = (car: TransitCar) => {
     cleanupBlobUrls(imagesList);
+    setActiveFormCarId(car.id);
     setEditingCarId(car.id);
     setSaveError(null);
     setTitle(car.title || '');
@@ -484,6 +490,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
     setIsSaving(true);
     setSaveError(null);
+    const targetCarId = editingCarId || activeFormCarId || `car-${Date.now()}`;
 
     const pendingBlobItems = imagesList.filter(item => (item.isBlob && item.file && item.isCompressed) || item.url.startsWith('data:'));
     const totalPending = pendingBlobItems.length;
@@ -513,7 +520,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           const fileToUpload = item.file;
           const fileNameToUpload = item.fileName || item.file.name;
 
-          // Upload compressed WebP to Supabase Storage
+          // Upload compressed WebP to Supabase Storage in per-car folder cars/{targetCarId}/
           const uploadPercent = 40 + Math.round((processedIdx / Math.max(1, totalPending)) * 50);
           setSaveProgress({
             step: 'uploading',
@@ -523,7 +530,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             message: `Supabase-ə yüklənir (${processedIdx}/${totalPending}): ${fileNameToUpload}...`
           });
 
-          const uploadRes = await uploadImageToSupabaseStorage(fileToUpload, fileNameToUpload);
+          const uploadRes = await uploadImageToSupabaseStorage(
+            fileToUpload,
+            fileNameToUpload,
+            2,
+            `cars/${targetCarId}/${fileNameToUpload}`,
+            targetCarId
+          );
           if (!uploadRes.success || !uploadRes.publicUrl) {
             throw new Error(`Şəkil Supabase Storage-ə yüklənə bilmədi (${fileNameToUpload}): ${uploadRes.error || 'Xəta'}`);
           }
@@ -548,7 +561,14 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             percentage: 40 + Math.round((processedIdx / totalPending) * 50),
             message: `Data şəkil Supabase-ə yüklənir (${processedIdx}/${totalPending})...`
           });
-          const upRes = await uploadImageToSupabaseStorage(item.url, `car-${Date.now()}-${Math.random().toString(36).substr(2, 6)}.webp`);
+          const uniqueFileName = `car-${Date.now()}-${Math.random().toString(36).substr(2, 6)}.webp`;
+          const upRes = await uploadImageToSupabaseStorage(
+            item.url,
+            uniqueFileName,
+            2,
+            `cars/${targetCarId}/${uniqueFileName}`,
+            targetCarId
+          );
           if (upRes.success && upRes.publicUrl) {
             finalImageUrls.push(upRes.publicUrl);
             uploadThumbnailForImage(item.url, upRes.publicUrl).catch(tErr => console.warn('Thumb upload notice:', tErr));
@@ -597,7 +617,13 @@ export const AdminModal: React.FC<AdminModalProps> = ({
                 console.warn('URL thumbnail creation notice:', tErr);
               }
 
-              const upRes = await uploadImageToSupabaseStorage(fileToUpload, nameToUpload);
+              const upRes = await uploadImageToSupabaseStorage(
+                fileToUpload,
+                nameToUpload,
+                2,
+                `cars/${targetCarId}/${nameToUpload}`,
+                targetCarId
+              );
               if (upRes.success && upRes.publicUrl) {
                 finalImageUrls.push(upRes.publicUrl);
                 uploadThumbnailForImage(
@@ -651,7 +677,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         : undefined;
 
       const carToSave: TransitCar = {
-        id: editingCarId || `car-${Date.now()}`,
+        id: targetCarId,
         title: safeTitle,
         brand: brand.trim(),
         make: brand.trim(),
@@ -798,6 +824,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         onOpenSettingsModal={() => setShowSupabaseSettingsModal(true)}
         onOpenRlsModal={() => setShowRlsModal(true)}
         onOpenThumbnailModal={() => setShowThumbnailModal(true)}
+        onOpenStorageManagerModal={() => setShowStorageManagerModal(true)}
         onRunConnectionTest={runConnectionTest}
         onLogout={handleLogout}
         onClose={onClose}
@@ -986,6 +1013,19 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           isOpen={showThumbnailModal}
           onClose={() => setShowThumbnailModal(false)}
           cars={cars}
+        />
+      )}
+
+      {/* Storage Manager Modal (Cars Folders Migration & Orphan Cleanup) */}
+      {isAuthenticated && showStorageManagerModal && (
+        <StorageManagerModal
+          isOpen={showStorageManagerModal}
+          onClose={() => setShowStorageManagerModal(false)}
+          cars={carsList}
+          onCarsUpdated={(updated) => {
+            setCarsList(updated);
+            onCarsUpdated(updated);
+          }}
         />
       )}
 

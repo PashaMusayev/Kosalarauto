@@ -5,7 +5,8 @@ import {
   Database, 
   RefreshCw, 
   X,
-  Images 
+  Images,
+  FolderSync
 } from 'lucide-react';
 import { ConnectionStatusState } from './adminTypes';
 import { STORAGE_BUCKET_NAME } from '../../services/supabaseClientInit';
@@ -19,6 +20,7 @@ interface AdminHeaderProps {
   onOpenSettingsModal: () => void;
   onOpenRlsModal: () => void;
   onOpenThumbnailModal?: () => void;
+  onOpenStorageManagerModal?: () => void;
   onRunConnectionTest: () => void;
   onLogout: () => void;
   onClose: () => void;
@@ -33,6 +35,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onOpenSettingsModal,
   onOpenRlsModal,
   onOpenThumbnailModal,
+  onOpenStorageManagerModal,
   onRunConnectionTest,
   onLogout,
   onClose
@@ -230,6 +233,21 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                         <div>
                           <div className="font-bold">Miniatürlər (Thumbnails)</div>
                           <div className="text-[10px] text-slate-400">Kiçik şəkilləri hazırla / yenilə</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowSettingsDropdown(false);
+                          onOpenStorageManagerModal?.();
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 text-left text-slate-200 hover:text-white hover:bg-slate-800 transition-colors"
+                      >
+                        <FolderSync className="w-4 h-4 text-blue-400 shrink-0" />
+                        <div>
+                          <div className="font-bold">Storage Qovluqları & Təmizləmə</div>
+                          <div className="text-[10px] text-slate-400">cars/&#123;carId&#125;/ köçürməsi və artıq fayllar</div>
                         </div>
                       </button>
 

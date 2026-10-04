@@ -139,7 +139,8 @@ export async function uploadImageToSupabaseStorage(
   fileOrData: File | Blob | string,
   fileName?: string,
   maxRetries = 2,
-  storagePath?: string
+  storagePath?: string,
+  carId?: string
 ): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
   try {
     let dataUrl: string;
@@ -170,6 +171,9 @@ export async function uploadImageToSupabaseStorage(
       dataUrl = await readFileAsDataUrl(fileOrData, displayName);
     }
 
+    // Auto-resolve storagePath if carId is specified and storagePath is omitted
+    const effectiveStoragePath = storagePath || (carId && fileName ? `cars/${carId}/${fileName}` : undefined);
+
     let lastError = '';
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -182,7 +186,8 @@ export async function uploadImageToSupabaseStorage(
           body: JSON.stringify({
             dataUrl,
             filename: fileName,
-            storagePath
+            storagePath: effectiveStoragePath,
+            carId
           })
         });
 
@@ -417,5 +422,91 @@ export async function deleteImagesFromSupabaseStorage(
     console.error('Image delete exception:', err);
     const msg = err instanceof Error ? err.message : 'Serverlə əlaqə xətası';
     return { success: false, deletedCount: 0, error: msg };
+  }
+}
+
+export interface StorageMigrationPlannedMove {
+  oldPath: string;
+  newPath: string;
+  isThumbnail: boolean;
+  size: number;
+  exists: boolean;
+}
+
+export interface StorageMigrationPlannedCar {
+  carId: string;
+  carTitle: string;
+  files: StorageMigrationPlannedMove[];
+  alreadyMigrated: boolean;
+}
+
+export interface StorageMigrationResult {
+  success: boolean;
+  dryRun: boolean;
+  totalCars?: number;
+  totalCarsPlanned?: number;
+  alreadyMigratedCars?: number;
+  totalFiles?: number;
+  totalSizeBytes?: number;
+  plannedCars?: StorageMigrationPlannedCar[];
+  carsMigrated?: number;
+  filesCopied?: number;
+  failures?: { carId: string; error: string }[];
+  cars?: unknown[];
+  error?: string;
+}
+
+export interface StorageCleanupResult {
+  success: boolean;
+  dryRun: boolean;
+  unreferencedCount?: number;
+  totalSizeBytes?: number;
+  protectedRecentCount?: number;
+  protectedReferencedCount?: number;
+  sample?: string[];
+  deletedCount?: number;
+  message?: string;
+  error?: string;
+}
+
+/**
+ * Executes a Storage Migration check (dryRun) or real copy run via backend.
+ */
+export async function runStorageMigration(dryRun: boolean, carId?: string): Promise<StorageMigrationResult> {
+  try {
+    const res = await fetch('/api/admin/storage/migrate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAdminAuthHeaders()
+      },
+      body: JSON.stringify({ dryRun, carId })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Serverlə əlaqə qurulmadı';
+    return { success: false, dryRun, error: msg };
+  }
+}
+
+/**
+ * Executes a Storage Cleanup check (dryRun) or real orphan purge run via backend.
+ */
+export async function runStorageCleanup(dryRun: boolean): Promise<StorageCleanupResult> {
+  try {
+    const res = await fetch('/api/admin/storage/cleanup', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAdminAuthHeaders()
+      },
+      body: JSON.stringify({ dryRun })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Serverlə əlaqə qurulmadı';
+    return { success: false, dryRun, error: msg };
   }
 }

@@ -1264,6 +1264,10 @@ async function startServer() {
     }
 
     const carId = String(rawId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 100);
+    if (!carId || !/^[a-zA-Z0-9_-]+$/.test(carId)) {
+      res.status(400).json({ success: false, error: 'Yararsız və ya boş avtomobil ID' });
+      return;
+    }
 
     const supabase = getServerSupabase();
     if (!supabase) {
@@ -1320,22 +1324,36 @@ async function startServer() {
       }
 
       // Additionally delete everything remaining under the prefix cars/{carId}/ so nothing is left behind
-      try {
-        let folderOffset = 0;
-        const folderLimit = 100;
-        while (true) {
-          const { data: folderFiles, error: listErr } = await supabase.storage
-            .from(STORAGE_BUCKET_NAME)
-            .list(`cars/${carId}`, { limit: folderLimit, offset: folderOffset });
-          if (listErr || !folderFiles || folderFiles.length === 0) break;
-          const toRemove = folderFiles.map(f => `cars/${carId}/${f.name}`);
-          await supabase.storage.from(STORAGE_BUCKET_NAME).remove(toRemove).catch(() => {});
-          await supabase.storage.from('CAR-IMAGES').remove(toRemove).catch(() => {});
-          if (folderFiles.length < folderLimit) break;
-          folderOffset += folderLimit;
+      if (!carId || !/^[a-zA-Z0-9_-]+$/.test(carId)) {
+        console.warn('Skipping folder purge: invalid or empty carId');
+      } else {
+        try {
+          const folderLimit = 100;
+          let iterations = 0;
+          const maxIterations = 50;
+          while (iterations < maxIterations) {
+            iterations++;
+            const { data: folderFiles, error: listErr } = await supabase.storage
+              .from(STORAGE_BUCKET_NAME)
+              .list(`cars/${carId}`, { limit: folderLimit, offset: 0 });
+
+            if (listErr || !folderFiles || folderFiles.length === 0) break;
+
+            // Skip folder entries (items without an id / metadata) when building the removal list
+            const toRemove = folderFiles
+              .filter(f => f && typeof f.name === 'string' && f.name.length > 0 && f.id !== null && f.id !== undefined && f.id !== '' && f.metadata !== null && f.metadata !== undefined)
+              .map(f => `cars/${carId}/${f.name}`);
+
+            if (toRemove.length === 0) break;
+
+            await supabase.storage.from(STORAGE_BUCKET_NAME).remove(toRemove).catch(() => {});
+            await supabase.storage.from('CAR-IMAGES').remove(toRemove).catch(() => {});
+            await supabase.storage.from('car-images').remove(toRemove).catch(() => {});
+            await supabase.storage.from('cars').remove(toRemove).catch(() => {});
+          }
+        } catch (purgeErr) {
+          console.warn(`Could not purge folder cars/${carId}:`, purgeErr);
         }
-      } catch (purgeErr) {
-        console.warn(`Could not purge folder cars/${carId}:`, purgeErr);
       }
 
       // Atomic delete of targeted DB row

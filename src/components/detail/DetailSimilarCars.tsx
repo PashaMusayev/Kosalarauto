@@ -18,14 +18,14 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
   onSelectSimilarCar,
   currentCarId,
 }) => {
-  if (!similarCars || similarCars.length === 0) return null;
-
   const [visibleCount, setVisibleCount] = useState(12);
 
   // Reset back to 12 whenever the viewed car changes
   useEffect(() => {
     setVisibleCount(12);
   }, [currentCarId, similarCars]);
+
+  if (!similarCars || similarCars.length === 0) return null;
 
   const visibleCars = similarCars.slice(0, visibleCount);
   const remainingCount = similarCars.length - visibleCount;

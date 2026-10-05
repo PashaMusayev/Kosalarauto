@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { TransitCar } from '../../types';
 import { DEFAULT_VEHICLE_PLACEHOLDER, getValidImageUrl, getThumbnailUrl, handleThumbnailLoadError } from '../../utils/imageFallback';
@@ -8,6 +8,7 @@ interface DetailSimilarCarsProps {
   favorites?: string[];
   onToggleFavorite?: (carId: string) => void;
   onSelectSimilarCar: (car: TransitCar) => void;
+  currentCarId?: string;
 }
 
 export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
@@ -15,8 +16,19 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
   favorites = [],
   onToggleFavorite,
   onSelectSimilarCar,
+  currentCarId,
 }) => {
   if (!similarCars || similarCars.length === 0) return null;
+
+  const [visibleCount, setVisibleCount] = useState(12);
+
+  // Reset back to 12 whenever the viewed car changes
+  useEffect(() => {
+    setVisibleCount(12);
+  }, [currentCarId, similarCars]);
+
+  const visibleCars = similarCars.slice(0, visibleCount);
+  const remainingCount = similarCars.length - visibleCount;
 
   return (
     <div className="w-full">
@@ -33,7 +45,7 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
 
       {/* Responsive Grid: 2 columns on mobile, 3 columns on sm/md */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        {similarCars.map((simCar) => {
+        {visibleCars.map((simCar) => {
           const simTitle = simCar.title || `${simCar.brand || 'Ford'} ${simCar.model || 'Transit'}`;
           const simPrice = (simCar.price || 0).toLocaleString();
           const simYear = simCar.year ? `${simCar.year} il` : '';
@@ -124,6 +136,19 @@ export const DetailSimilarCars: React.FC<DetailSimilarCarsProps> = ({
           );
         })}
       </div>
+
+      {/* "Daha çox göstər (N)" Düyməsi (12-dən çox elan olduqda) */}
+      {remainingCount > 0 && (
+        <div className="mt-5 sm:mt-6 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisibleCount((prev) => prev + 12)}
+            className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-white hover:bg-slate-100 active:scale-98 text-slate-800 font-bold text-sm border border-slate-200/80 shadow-xs hover:shadow-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Daha çox göstər ({remainingCount})</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

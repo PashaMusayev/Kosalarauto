@@ -432,9 +432,17 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
       return { car: item, score };
     });
 
-    // Sort by relevance score descending
-    scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, 6).map(s => s.car);
+    // Sort by relevance score descending. For equal scores, use stable secondary order (newest listing first)
+    scored.sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      const yearDiff = (b.car.year || 0) - (a.car.year || 0);
+      if (yearDiff !== 0) return yearDiff;
+      return String(b.car.id).localeCompare(String(a.car.id));
+    });
+
+    return scored.map(s => s.car);
   }, [allCars, car]);
 
   return (
@@ -612,6 +620,7 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
                       favorites={favorites}
                       onToggleFavorite={onToggleFavorite}
                       onSelectSimilarCar={onSelectSimilarCar}
+                      currentCarId={car?.id}
                     />
                   </div>
                 </section>

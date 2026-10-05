@@ -882,6 +882,37 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
     return parts.join(', ');
   }, [safeTitle, cleanEngineText, safeYear, safeMileage]);
 
+  // Turbo.az Photo Grid header title format with mileage: e.g. "Mercedes Sprinter, 2.4 L, 2012 il, 215 000 km"
+  const photoGridHeaderTitle = useMemo(() => {
+    let formattedEngine = '';
+    if (safeEngine) {
+      const match = safeEngine.trim().match(/^([0-9.]+)\s*l?$/i);
+      if (match) {
+        formattedEngine = `${match[1]} L`;
+      } else {
+        formattedEngine = safeEngine.trim();
+      }
+    }
+
+    const rawMileage = car?.mileage;
+    let formattedMileage = '';
+    if (rawMileage !== undefined && rawMileage !== null && String(rawMileage).trim() !== '') {
+      const num = Number(rawMileage);
+      if (!isNaN(num) && num > 0) {
+        formattedMileage = `${Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} km`;
+      }
+    }
+
+    const parts = [
+      safeTitle,
+      formattedEngine,
+      safeYear ? `${safeYear} il` : '',
+      formattedMileage
+    ].filter(Boolean);
+
+    return parts.join(', ');
+  }, [safeTitle, safeEngine, safeYear, car?.mileage]);
+
   const carDirectLink = useMemo(() => {
     if (typeof window === 'undefined' || !car?.id) {
       return `https://kosalarauto.az/?car=${car?.id || ''}`;
@@ -974,6 +1005,14 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
         onClose={closePhotoGrid}
         imagesList={imagesList}
         title={vehicleMainTitle || safeTitle}
+        headerTitle={photoGridHeaderTitle}
+        mileage={car?.mileage}
+        isFavorite={isFavorite}
+        onToggleFavorite={() => {
+          if (car?.id && onToggleFavorite) {
+            onToggleFavorite(car.id);
+          }
+        }}
         onSelectPhoto={handleSelectPhotoFromGrid}
         disabledEscape={isLightboxOpen}
         initialScrollTop={photoGridScrollPositionRef.current}

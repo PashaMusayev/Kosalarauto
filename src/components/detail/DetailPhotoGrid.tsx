@@ -434,7 +434,7 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 30 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
-          className={`fixed inset-0 z-[65] flex flex-col bg-white select-none overflow-hidden ${
+          className={`fixed inset-0 z-[65] flex flex-col bg-[#EEF1F6] select-none overflow-hidden ${
             disabledEscape ? 'pointer-events-none' : ''
           }`}
           role="dialog"
@@ -493,14 +493,14 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
           {/* Mosaic Layout (Orientation-aware 2-1-2-1 təkrar olunan qrid - Turbo.az Mobil Tərzi) */}
           {!isReady ? (
             /* Neutral skeleton placeholder while sizes probe (at most 1.5s, usually instant) */
-            <div className="flex-1 overflow-hidden bg-white">
-              <div className="flex flex-col gap-[2px] bg-white w-full animate-pulse">
-                <div className="grid grid-cols-2 gap-[2px] w-full">
+            <div className="flex-1 overflow-hidden bg-[#EEF1F6]">
+              <div className="flex flex-col gap-2 pt-2 bg-[#EEF1F6] w-full animate-pulse">
+                <div className="grid grid-cols-2 gap-2 w-full">
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                 </div>
                 <div className="w-full aspect-[5/3] bg-slate-200" />
-                <div className="grid grid-cols-2 gap-[2px] w-full">
+                <div className="grid grid-cols-2 gap-2 w-full">
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                 </div>
@@ -510,13 +510,13 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto overscroll-contain bg-white"
+              className="flex-1 overflow-y-auto overscroll-contain bg-[#EEF1F6]"
             >
-              <div className="flex flex-col gap-[2px] bg-white w-full">
+              <div className="flex flex-col gap-2 pt-2 pb-6 bg-[#EEF1F6] w-full">
                 {rows.map((row, rowIdx) => {
                   if (row.type === 'pair') {
                     return (
-                      <div key={`row-${rowIdx}`} className="grid grid-cols-2 gap-[2px] w-full">
+                      <div key={`row-${rowIdx}`} className="grid grid-cols-2 gap-2 w-full">
                         {row.items.map((item) => (
                           <PairGridTile
                             key={`photo-grid-pair-${item.index}`}

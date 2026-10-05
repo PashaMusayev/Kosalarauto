@@ -19,6 +19,63 @@ interface DetailPhotoGridProps {
   onScrollPositionChange?: (scrollTop: number) => void;
 }
 
+// Module-level cache for orientation detection (true = landscape, false = portrait)
+const orientationCache = new Map<string, boolean>();
+
+function isLandscapeUrl(url: string): boolean {
+  return orientationCache.get(url) === true;
+}
+
+/**
+ * Probes the image's natural dimensions via Image().
+ * Landscape = width / height >= 1.15
+ */
+function probeImageOrientation(img: string): Promise<boolean> {
+  const fullImgUrl = getValidImageUrl(img);
+  if (orientationCache.has(fullImgUrl)) {
+    return Promise.resolve(orientationCache.get(fullImgUrl)!);
+  }
+
+  const thumbUrl = getThumbnailUrl(fullImgUrl);
+  return new Promise<boolean>((resolve) => {
+    const probe = new Image();
+    probe.referrerPolicy = 'no-referrer';
+
+    let resolved = false;
+    const finish = (isLandscape: boolean) => {
+      if (resolved) return;
+      resolved = true;
+      orientationCache.set(fullImgUrl, isLandscape);
+      resolve(isLandscape);
+    };
+
+    probe.onload = () => {
+      const w = probe.naturalWidth || probe.width;
+      const h = probe.naturalHeight || probe.height;
+      if (w > 0 && h > 0) {
+        finish((w / h) >= 1.15);
+      } else {
+        finish(false); // Unknown defaults to portrait
+      }
+    };
+
+    probe.onerror = () => {
+      if (probe.src !== fullImgUrl) {
+        probe.src = fullImgUrl;
+      } else {
+        finish(false);
+      }
+    };
+
+    probe.src = thumbUrl;
+    if (probe.complete && probe.naturalWidth > 0) {
+      const w = probe.naturalWidth;
+      const h = probe.naturalHeight;
+      finish((w / h) >= 1.15);
+    }
+  });
+}
+
 interface GridPairRow {
   type: 'pair';
   items: { img: string; index: number }[];
@@ -27,24 +84,66 @@ interface GridPairRow {
 interface GridWideRow {
   type: 'wide';
   item: { img: string; index: number };
+  aspect: '5/3' | '4/5';
 }
 
 type GridRow = GridPairRow | GridWideRow;
 
-function buildGridRows(images: string[]): GridRow[] {
+/**
+ * Orientation-aware row building preserving exact photo order:
+ * - Start with a pair. After a pair, next row wants to be wide.
+ * - If wide is wanted AND next image is landscape -> render as wide tile (5:3).
+ * - Otherwise render the next two images as a pair (4:5 tiles), and next row wants to be wide again.
+ * - Last image left alone: landscape -> wide tile (5:3); portrait -> full-width 4:5 tile so it is not cropped.
+ */
+function buildOrientationAwareRows(
+  images: string[],
+  isLandscapeFn: (img: string) => boolean
+): GridRow[] {
   const rows: GridRow[] = [];
   let i = 0;
+  let wantsWide = false; // Start with a pair
+
   while (i < images.length) {
     const remaining = images.length - i;
+
+    // Last image left alone:
     if (remaining === 1) {
-      // Single remaining item: render as wide tile (no empty half)
+      const isLand = isLandscapeFn(images[i]);
       rows.push({
         type: 'wide',
-        item: { img: images[i], index: i }
+        item: { img: images[i], index: i },
+        aspect: isLand ? '5/3' : '4/5'
       });
       i += 1;
-    } else if (remaining === 2) {
-      // Exactly 2 remaining: render as pair
+      break;
+    }
+
+    if (wantsWide) {
+      const isLand = isLandscapeFn(images[i]);
+      if (isLand) {
+        // Wide row is wanted AND next image is landscape -> render as wide tile (5:3)
+        rows.push({
+          type: 'wide',
+          item: { img: images[i], index: i },
+          aspect: '5/3'
+        });
+        i += 1;
+        wantsWide = false; // Next row after wide wants to be pair
+      } else {
+        // Next image is portrait -> render the next two as a pair (4:5 tiles), and next row wants wide again
+        rows.push({
+          type: 'pair',
+          items: [
+            { img: images[i], index: i },
+            { img: images[i + 1], index: i + 1 }
+          ]
+        });
+        i += 2;
+        wantsWide = true;
+      }
+    } else {
+      // Pair row (start with a pair or after a wide)
       rows.push({
         type: 'pair',
         items: [
@@ -53,27 +152,15 @@ function buildGridRows(images: string[]): GridRow[] {
         ]
       });
       i += 2;
-    } else {
-      // 3 or more: pair (positions 1-2), then wide (position 3)
-      rows.push({
-        type: 'pair',
-        items: [
-          { img: images[i], index: i },
-          { img: images[i + 1], index: i + 1 }
-        ]
-      });
-      rows.push({
-        type: 'wide',
-        item: { img: images[i + 2], index: i + 2 }
-      });
-      i += 3;
+      wantsWide = true; // After a pair, next row wants to be wide
     }
   }
+
   return rows;
 }
 
 /**
- * Wide tile (full width, landscape aspect around 5:3).
+ * Wide tile (full width, landscape aspect 5:3 or full-width portrait aspect 4:5).
  * Uses full-size image (1200px) with thumbnail placeholder underneath until loaded.
  */
 interface WideGridTileProps {
@@ -81,6 +168,7 @@ interface WideGridTileProps {
   index: number;
   title: string;
   isEager: boolean;
+  aspect?: '5/3' | '4/5';
   onSelect: (index: number) => void;
 }
 
@@ -89,6 +177,7 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
   index,
   title,
   isEager,
+  aspect = '5/3',
   onSelect
 }) => {
   const fullImgUrl = getValidImageUrl(img);
@@ -105,12 +194,13 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
   };
 
   const showThumbPlaceholder = placeholderVisible && !thumbFailed && thumbUrl !== fullImgUrl;
+  const aspectClass = aspect === '4/5' ? 'aspect-[4/5]' : 'aspect-[5/3]';
 
   return (
     <button
       type="button"
       onClick={() => onSelect(index)}
-      className="relative w-full aspect-[5/3] bg-slate-100 overflow-hidden cursor-pointer block select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]"
+      className={`relative w-full ${aspectClass} bg-slate-100 overflow-hidden cursor-pointer block select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1D4ED8]`}
       title={`${index + 1}-ci şəkil`}
       aria-label={`${title} - ${index + 1}-ci şəkil`}
     >
@@ -151,7 +241,7 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
 };
 
 /**
- * Pair tile (half width, portrait-ish aspect around 4:5).
+ * Pair tile (half width, portrait-ish aspect 4:5).
  * Uses thumbnail (800px) with failed thumbnail fallback.
  */
 interface PairGridTileProps {
@@ -209,9 +299,15 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  // Ready state: true once all orientations are known or timeout fires
+  const [isReady, setIsReady] = useState<boolean>(() => {
+    if (!isOpen || imagesList.length === 0) return true;
+    return imagesList.every((img) => orientationCache.has(getValidImageUrl(img)));
+  });
+
   // Restore scroll position when grid opens/mounts (Phase 34)
   useLayoutEffect(() => {
-    if (isOpen && scrollContainerRef.current && initialScrollTop > 0) {
+    if (isOpen && scrollContainerRef.current && initialScrollTop > 0 && isReady) {
       scrollContainerRef.current.scrollTop = initialScrollTop;
       const rafId = requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
@@ -220,7 +316,7 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
       });
       return () => cancelAnimationFrame(rafId);
     }
-  }, [isOpen, initialScrollTop]);
+  }, [isOpen, initialScrollTop, isReady]);
 
   // Thumbnail prefetching on open
   useEffect(() => {
@@ -228,6 +324,45 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
       const thumbs = imagesList.map((img) => getThumbnailUrl(getValidImageUrl(img)));
       prefetchImages(thumbs);
     }
+  }, [isOpen, imagesList]);
+
+  // Orientation probing with 1.5s timeout: unresolved defaults to portrait
+  useEffect(() => {
+    if (!isOpen || imagesList.length === 0) return;
+
+    const unknownImages = imagesList.filter(
+      (img) => !orientationCache.has(getValidImageUrl(img))
+    );
+
+    if (unknownImages.length === 0) {
+      setIsReady(true);
+      return;
+    }
+
+    let isMounted = true;
+    const probes = unknownImages.map((img) => probeImageOrientation(img));
+
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      for (const img of unknownImages) {
+        const key = getValidImageUrl(img);
+        if (!orientationCache.has(key)) {
+          orientationCache.set(key, false); // Safe default: portrait
+        }
+      }
+      setIsReady(true);
+    }, 1500);
+
+    Promise.all(probes).then(() => {
+      if (!isMounted) return;
+      clearTimeout(timer);
+      setIsReady(true);
+    });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, [isOpen, imagesList]);
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -241,26 +376,55 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
     onSelectPhoto(idx);
   };
 
-  // Header display string: Turbo.az format e.g. "Mercedes Sprinter, 2.4 L, 2012 il, 215 000 km"
-  const displayHeader = useMemo(() => {
-    if (headerTitle) return headerTitle;
-
-    let kmPart = '';
+  // Header two-line formatting (Turbo.az style):
+  // Line 1: brand/model, engine and year ending with comma — e.g. "Ford Transit, 2.4 L, 2006 il,"
+  // Line 2: the mileage — e.g. "170 000 km"
+  // If no mileage: show only line 1 without trailing comma
+  const { line1, line2 } = useMemo(() => {
+    let kmStr = '';
     if (mileage !== undefined && mileage !== null && String(mileage).trim() !== '') {
       const num = Number(mileage);
       if (!isNaN(num) && num > 0) {
-        kmPart = `${Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} km`;
+        kmStr = `${Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} km`;
       }
     }
 
-    if (kmPart && !title.includes(' km')) {
-      return `${title}, ${kmPart}`;
+    let base = '';
+    if (headerTitle) {
+      if (kmStr && headerTitle.endsWith(kmStr)) {
+        base = headerTitle.slice(0, -kmStr.length).replace(/,\s*$/, '').trim();
+      } else {
+        const kmMatch = headerTitle.match(/,\s*([\d\s]+km)$/i);
+        if (kmMatch) {
+          if (!kmStr) kmStr = kmMatch[1].trim();
+          base = headerTitle.replace(/,\s*[\d\s]+km$/i, '').trim();
+        } else {
+          base = headerTitle.trim();
+        }
+      }
     }
-    return title;
+
+    if (!base) {
+      base = title.trim();
+    }
+
+    if (kmStr) {
+      return {
+        line1: `${base.replace(/,\s*$/, '')},`,
+        line2: kmStr
+      };
+    }
+
+    return {
+      line1: base.replace(/,\s*$/, ''),
+      line2: null
+    };
   }, [headerTitle, title, mileage]);
 
-  // Group images into 2-1-2-1 mosaic rows
-  const rows = useMemo(() => buildGridRows(imagesList), [imagesList]);
+  // Compute orientation-aware rows once orientations are known
+  const rows = useMemo(() => {
+    return buildOrientationAwareRows(imagesList, (img) => isLandscapeUrl(getValidImageUrl(img)));
+  }, [imagesList, isReady]);
 
   return (
     <AnimatePresence>
@@ -275,10 +439,10 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
           }`}
           role="dialog"
           aria-modal="true"
-          aria-label={`${displayHeader} - Bütün şəkillər`}
+          aria-label={`${line1} ${line2 || ''} - Bütün şəkillər`}
         >
           {/* Turbo.az Mobil Şəkil Qalereyası Başlığı */}
-          <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-3.5 py-2.5 flex items-center justify-between shadow-xs shrink-0">
+          <div className="sticky top-0 z-20 bg-white border-b border-slate-200 px-3.5 py-2 flex items-center justify-between shadow-xs shrink-0 min-h-[58px]">
             {/* Geri Düyməsi */}
             <button
               type="button"
@@ -295,10 +459,15 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
             </button>
 
             {/* Avtomobil Başlığı və Yürüş (Turbo.az stili 2 sətirli mərkəzləşdirilmiş başlıq) */}
-            <div className="flex-1 min-w-0 px-3 text-center">
-              <h2 className="text-xs sm:text-sm font-bold text-slate-900 line-clamp-2 leading-snug">
-                {displayHeader}
+            <div className="flex-1 min-w-0 px-2 sm:px-3 text-center flex flex-col items-center justify-center">
+              <h2 className="text-[16px] sm:text-[17px] font-semibold text-slate-900 leading-snug text-center break-words line-clamp-2">
+                {line1}
               </h2>
+              {line2 && (
+                <p className="text-[15px] sm:text-[16px] font-semibold text-slate-800 leading-snug text-center mt-0.5">
+                  {line2}
+                </p>
+              )}
             </div>
 
             {/* Sevimlilər (Ürək) Düyməsi (X düyməsini əvəz edir) */}
@@ -321,46 +490,64 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
             </button>
           </div>
 
-          {/* Mosaic Layout (2-1-2-1 təkrar olunan qrid - Turbo.az Mobil Tərzi) */}
-          <div
-            ref={scrollContainerRef}
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto overscroll-contain bg-white"
-          >
-            <div className="flex flex-col gap-[2px] bg-white w-full">
-              {rows.map((row, rowIdx) => {
-                if (row.type === 'pair') {
+          {/* Mosaic Layout (Orientation-aware 2-1-2-1 təkrar olunan qrid - Turbo.az Mobil Tərzi) */}
+          {!isReady ? (
+            /* Neutral skeleton placeholder while sizes probe (at most 1.5s, usually instant) */
+            <div className="flex-1 overflow-hidden bg-white">
+              <div className="flex flex-col gap-[2px] bg-white w-full animate-pulse">
+                <div className="grid grid-cols-2 gap-[2px] w-full">
+                  <div className="w-full aspect-[4/5] bg-slate-200" />
+                  <div className="w-full aspect-[4/5] bg-slate-200" />
+                </div>
+                <div className="w-full aspect-[5/3] bg-slate-200" />
+                <div className="grid grid-cols-2 gap-[2px] w-full">
+                  <div className="w-full aspect-[4/5] bg-slate-200" />
+                  <div className="w-full aspect-[4/5] bg-slate-200" />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto overscroll-contain bg-white"
+            >
+              <div className="flex flex-col gap-[2px] bg-white w-full">
+                {rows.map((row, rowIdx) => {
+                  if (row.type === 'pair') {
+                    return (
+                      <div key={`row-${rowIdx}`} className="grid grid-cols-2 gap-[2px] w-full">
+                        {row.items.map((item) => (
+                          <PairGridTile
+                            key={`photo-grid-pair-${item.index}`}
+                            img={item.img}
+                            index={item.index}
+                            title={title}
+                            isEager={item.index < 3}
+                            onSelect={handleSelect}
+                          />
+                        ))}
+                      </div>
+                    );
+                  }
+
                   return (
-                    <div key={`row-${rowIdx}`} className="grid grid-cols-2 gap-[2px] w-full">
-                      {row.items.map((item) => (
-                        <PairGridTile
-                          key={`photo-grid-pair-${item.index}`}
-                          img={item.img}
-                          index={item.index}
-                          title={title}
-                          isEager={item.index < 3}
-                          onSelect={handleSelect}
-                        />
-                      ))}
+                    <div key={`row-${rowIdx}`} className="w-full">
+                      <WideGridTile
+                        key={`photo-grid-wide-${row.item.index}`}
+                        img={row.item.img}
+                        index={row.item.index}
+                        title={title}
+                        isEager={row.item.index < 3}
+                        aspect={row.aspect}
+                        onSelect={handleSelect}
+                      />
                     </div>
                   );
-                }
-
-                return (
-                  <div key={`row-${rowIdx}`} className="w-full">
-                    <WideGridTile
-                      key={`photo-grid-wide-${row.item.index}`}
-                      img={row.item.img}
-                      index={row.item.index}
-                      title={title}
-                      isEager={row.item.index < 3}
-                      onSelect={handleSelect}
-                    />
-                  </div>
-                );
-              })}
+                })}
+              </div>
             </div>
-          </div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

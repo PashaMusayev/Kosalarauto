@@ -140,12 +140,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
   const [isFetchingClicks, setIsFetchingClicks] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'active' | 'sold'>('all');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
-  const [adminViewMode, setAdminViewMode] = useState<'table' | 'cards'>(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      return 'cards';
-    }
-    return 'table';
-  });
+  const [adminViewMode, setAdminViewMode] = useState<'table' | 'cards'>('cards');
   const [deletingCarId, setDeletingCarId] = useState<string | null>(null);
 
   // Real-time WhatsApp clicks sync

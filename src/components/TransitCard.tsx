@@ -7,18 +7,29 @@ import { prefetchDetailModal } from '../utils/detailModalPreloader';
 
 interface TransitCardProps {
   car: TransitCar;
-  onViewDetails: (car: TransitCar) => void;
-  isFavorite: boolean;
-  onToggleFavorite: (carId: string) => void;
+  onViewDetails?: (car: TransitCar) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (carId: string) => void;
   priority?: boolean;
+  // Optional admin-only extensions
+  variant?: 'public' | 'admin';
+  onCardClick?: (car: TransitCar) => void;
+  hideFavorite?: boolean;
+  adminOverlay?: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
   car,
   onViewDetails,
-  isFavorite,
+  isFavorite = false,
   onToggleFavorite,
-  priority = false
+  priority = false,
+  variant = 'public',
+  onCardClick,
+  hideFavorite = false,
+  adminOverlay,
+  children
 }) {
   // Safe property extraction
   const safeTitle = car?.title || `${car?.brand || 'Ford'} ${car?.model || 'Transit'}`;
@@ -54,7 +65,13 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
   return (
     <div 
       className="bg-white rounded-lg sm:rounded-xl border border-slate-200/50 shadow-sm transition-[transform,box-shadow] duration-200 [@media(hover:hover)]:hover:shadow-md [@media(hover:hover)]:hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer"
-      onClick={() => onViewDetails(car)}
+      onClick={() => {
+        if (onCardClick) {
+          onCardClick(car);
+        } else if (onViewDetails) {
+          onViewDetails(car);
+        }
+      }}
       onMouseEnter={handlePrefetch}
       onTouchStart={handlePrefetch}
     >
@@ -86,23 +103,41 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
           decoding="async"
         />
 
-        {/* Favorite Button (Heart) */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (car?.id) onToggleFavorite(car.id);
-          }}
-          className={`absolute top-1.5 right-1.5 p-1.5 rounded-full transition-transform hover:scale-110 active:scale-95 z-20 cursor-pointer ${
-            isFavorite 
-              ? 'bg-red-600 text-white shadow-sm' 
-              : 'bg-black/35 text-white hover:text-red-400 hover:bg-black/60'
-          }`}
-          title={isFavorite ? 'Seçilmişlərdən çıxar' : 'Seçilmişlərə əlavə et'}
-          aria-label="Seçilmişlərə əlavə et"
-        >
-          <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-current' : ''}`} />
-        </button>
+        {/* Admin Sold Overlay (PART 2) */}
+        {variant === 'admin' && car?.status === 'sold' && (
+          <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-[1px] flex items-center justify-center z-15 pointer-events-none">
+            <div className="bg-red-600/95 text-white font-black text-xs sm:text-sm tracking-widest px-3.5 py-1 rounded-md shadow-xl border border-red-400/80 uppercase rotate-[-6deg] select-none">
+              SATILDI
+            </div>
+          </div>
+        )}
+
+        {/* Favorite Button (Heart) - only when not in admin and not hidden */}
+        {variant !== 'admin' && !hideFavorite && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (car?.id && onToggleFavorite) onToggleFavorite(car.id);
+            }}
+            className={`absolute top-1.5 right-1.5 p-1.5 rounded-full transition-transform hover:scale-110 active:scale-95 z-20 cursor-pointer ${
+              isFavorite 
+                ? 'bg-red-600 text-white shadow-sm' 
+                : 'bg-black/35 text-white hover:text-red-400 hover:bg-black/60'
+            }`}
+            title={isFavorite ? 'Seçilmişlərdən çıxar' : 'Seçilmişlərə əlavə et'}
+            aria-label="Seçilmişlərə əlavə et"
+          >
+            <Heart className={`w-3.5 h-3.5 ${isFavorite ? 'fill-current' : ''}`} />
+          </button>
+        )}
+
+        {/* Admin Overlay slot (e.g. Kebab Menu Trigger) */}
+        {adminOverlay && (
+          <div className="absolute top-1.5 right-1.5 z-25" onClick={(e) => e.stopPropagation()}>
+            {adminOverlay}
+          </div>
+        )}
 
         {/* Compact Base Length Pill */}
         {safeBaseLength && safeBaseLength !== 'Hamısı' && (
@@ -143,6 +178,13 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
             {safeLocation}
           </span>
         </div>
+
+        {/* Optional children slot (e.g. Admin listing quality warnings pill) */}
+        {children && (
+          <div className="pt-1.5 border-t border-slate-100/90 mt-1" onClick={(e) => e.stopPropagation()}>
+            {children}
+          </div>
+        )}
 
       </div>
     </div>

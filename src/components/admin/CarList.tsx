@@ -6,10 +6,72 @@ import {
   RefreshCw, 
   Edit3, 
   Trash2,
-  MoreVertical
+  MoreVertical,
+  AlertTriangle
 } from 'lucide-react';
 import { TransitCar } from '../../types';
 import { DEFAULT_VEHICLE_PLACEHOLDER, getValidImageUrl, getThumbnailUrl, handleThumbnailLoadError } from '../../utils/imageFallback';
+import { TransitCard } from '../TransitCard';
+import { getListingQualityIssues } from '../../utils/listingQuality';
+
+const ListingQualityPill: React.FC<{ car: TransitCar }> = ({ car }) => {
+  const issues = getListingQualityIssues(car);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
+
+  if (issues.length === 0) {
+    return (
+      <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 w-fit select-none">
+        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+        <span>Tam</span>
+      </div>
+    );
+  }
+
+  const showDropdown = isExpanded || isHovered;
+
+  return (
+    <div 
+      className="relative inline-block select-none"
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsExpanded(prev => !prev);
+        }}
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-500/15 text-amber-700 sm:text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer active:scale-95"
+        title="Tövsiyələri göstər"
+      >
+        <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+        <span>⚠ {issues.length} tövsiyə</span>
+      </button>
+
+      {showDropdown && (
+        <div 
+          className="absolute bottom-full left-0 mb-1 z-50 w-56 p-2.5 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl text-left animate-in fade-in duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="font-extrabold text-[11px] text-amber-400 mb-1.5 flex items-center gap-1 border-b border-slate-800 pb-1">
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>Tövsiyələr ({issues.length}):</span>
+          </div>
+          <ul className="space-y-1 text-[11px] text-slate-200">
+            {issues.map((issue, idx) => (
+              <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                <span className="text-amber-400 font-bold shrink-0">•</span>
+                <span>{issue}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface ActiveMenuPosition {
   carId: string | number;
@@ -108,160 +170,44 @@ export const CarList: React.FC<CarListProps> = ({
 
   return (
     <>
-      {/* Cars List: MOBILE CARD VIEW (Active when viewMode is 'cards') */}
+      {/* Cars List: PUBLIC-STYLE RESPONSIVE CARD GRID (2 cols on mobile, 3 on md, 4 on lg) */}
       {adminViewMode === 'cards' && (
-        <div className="space-y-3">
-          {filteredCars.map(car => {
-            const feats = Array.isArray(car.features) ? car.features : [];
-            const isSold = car.status === 'sold';
-            const isUpdating = updatingStatusCarId === car.id;
-
-            return (
-              <div 
-                key={`mobile-car-${car.id}`} 
-                className={`bg-slate-950 p-3.5 rounded-xl border border-slate-800 shadow-md space-y-3 ${
-                  isSold ? 'opacity-85 border-amber-500/20 bg-slate-950/70' : ''
-                }`}
-              >
-                {/* Top: Image & Essential Info */}
-                <div className="flex items-start gap-3">
-                  <div className="w-20 h-16 rounded-lg overflow-hidden bg-slate-800 border border-slate-700 shrink-0 relative">
-                    <img 
-                      src={getThumbnailUrl(getValidImageUrl(car.primaryImage))} 
-                      alt={car.title} 
-                      className="w-full h-full object-cover" 
-                      onError={(e) => { 
-                        handleThumbnailLoadError(e.currentTarget, getValidImageUrl(car.primaryImage), DEFAULT_VEHICLE_PLACEHOLDER);
-                      }}
-                    />
-                    {isSold && (
-                      <div className="absolute inset-0 bg-slate-950/75 flex items-center justify-center">
-                        <span className="text-[9px] font-black text-amber-400 tracking-tighter">Satıldı</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-1.5">
-                      <h4 className="font-extrabold text-white text-sm leading-tight truncate">
-                        {car.title}
-                      </h4>
-                      {car.isFeatured && (
-                        <span className="text-[9px] bg-amber-500/20 text-amber-300 font-bold px-1.5 py-0.2 rounded border border-amber-500/30 shrink-0">
-                          Vitrin
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">
-                      {car.year} il • {car.engine}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="bg-slate-900 px-2 py-0.5 rounded text-[10px] text-slate-300 border border-slate-800">
-                        {car.baseLength} • {car.roofHeight}
-                      </span>
-                      <span className="font-bold text-xs text-slate-300">
-                        {Number(car.mileage).toLocaleString()} km
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Price & Features Row */}
-                <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold">Qiymət:</span>
-                    <span className="font-black text-emerald-400 text-sm sm:text-base">
-                      {Number(car.price).toLocaleString()} AZN
-                    </span>
-                  </div>
-
-                  <button 
-                    type="button" 
-                    onClick={() => onEditCar(car)}
-                    className="flex items-center gap-1 text-[11px] font-bold text-blue-400 bg-blue-950/40 hover:bg-blue-900/40 px-2.5 py-1 rounded-lg border border-blue-800/30"
-                  >
-                    <CheckSquare className="w-3.5 h-3.5 text-blue-400" />
-                    <span>{feats.length} təchizat</span>
-                  </button>
-                </div>
-
-                {/* Actions & Status Row */}
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                  {/* Sadə Status Badge */}
-                  <div>
-                    {isSold ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                        <span>Satıldı</span>
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                        <span>Satışda</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Əməliyyatlar */}
-                  <div className="flex items-center gap-1.5">
+        <>
+          {filteredCars.length === 0 ? (
+            <div className="bg-slate-950 rounded-xl border border-slate-800 p-8 text-center text-slate-400 text-xs">
+              Axtarışa uyğun avtomobil tapılmadı.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
+              {filteredCars.map(car => (
+                <TransitCard
+                  key={`admin-car-${car.id}`}
+                  car={car}
+                  variant="admin"
+                  onCardClick={() => onEditCar(car)}
+                  hideFavorite={true}
+                  adminOverlay={
                     <button
                       type="button"
-                      onClick={() => onToggleStatus(car)}
-                      disabled={isUpdating}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all inline-flex items-center gap-1.5 ${
-                        isSold
-                          ? 'bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border-emerald-500/40'
-                          : 'bg-amber-600/20 hover:bg-amber-600 text-amber-300 hover:text-white border-amber-500/40'
+                      onClick={(e) => handleKebabClick(e, car.id)}
+                      className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+                        activeMenu?.carId === car.id
+                          ? 'bg-slate-700 text-white border-slate-600 shadow-sm'
+                          : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border-slate-700/80 shadow-md active:scale-95'
                       }`}
+                      title="Əməliyyatlar (Status, Sil)"
+                      aria-label="Əməliyyatlar"
                     >
-                      {isUpdating ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      ) : isSold ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>Satışa çıxar</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Satıldı et</span>
-                        </>
-                      )}
+                      <MoreVertical className="w-3.5 h-3.5" />
                     </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => onEditCar(car)}
-                      className="px-2.5 py-1.5 rounded-lg bg-blue-600/15 hover:bg-blue-600/30 text-blue-300 hover:text-white border border-blue-500/30 text-xs font-bold inline-flex items-center gap-1"
-                      title="Redaktə et"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Redaktə</span>
-                    </button>
-
-                    <button 
-                      type="button" 
-                      onClick={() => onDeleteCar(car.id, car.images)}
-                      disabled={deletingCarId === car.id}
-                      className={`p-1.5 rounded-lg text-rose-400 border transition-all ${
-                        deletingCarId === car.id
-                          ? 'bg-rose-950/80 border-rose-700 opacity-60 cursor-not-allowed'
-                          : 'bg-rose-600/15 hover:bg-rose-600/30 border-rose-500/20 active:scale-95'
-                      }`}
-                      title="Sil"
-                    >
-                      {deletingCarId === car.id ? (
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-300" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  }
+                >
+                  <ListingQualityPill car={car} />
+                </TransitCard>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Cars Table: RESPONSIVE TABLE VIEW WITH HORIZONTAL SCROLL (Default on mobile & desktop) */}

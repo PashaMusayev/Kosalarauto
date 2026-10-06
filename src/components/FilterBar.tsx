@@ -224,7 +224,7 @@ const TurboMultiSelect = React.memo<TurboMultiSelectProps>(({
           }
           setIsOpen(!isOpen);
         }}
-        className={`w-full min-h-12 py-2 bg-slate-50 hover:bg-slate-100/90 border rounded-xl px-2.5 sm:px-3 flex items-center justify-between gap-1.5 transition-all cursor-pointer select-none shadow-2xs ${
+        className={`w-full min-h-12 py-2 bg-white hover:bg-slate-50/90 border rounded-xl px-2.5 sm:px-3 flex items-center justify-between gap-1.5 transition-all cursor-pointer select-none shadow-2xs ${
           isOpen
             ? 'border-[#1D4ED8] ring-2 ring-blue-500/20 bg-white'
             : selectedValues.length > 0
@@ -271,7 +271,7 @@ const TurboMultiSelect = React.memo<TurboMultiSelectProps>(({
       {/* Popover Menu - Smart Direction (Up/Down) & Smooth Origin Animation */}
       {isOpen && (
         <div
-          className={`absolute z-50 left-0 w-full max-w-[280px] bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200 ease-out flex flex-col transition-all ${
+          className={`absolute z-50 left-0 right-0 w-full bg-white rounded-xl border border-slate-200 shadow-xl overflow-hidden animate-in fade-in-0 zoom-in-95 duration-200 ease-out flex flex-col transition-all ${
             openUpward
               ? 'bottom-full mb-1.5 origin-bottom'
               : 'top-full mt-1.5 origin-top'
@@ -427,7 +427,7 @@ const TurboYearSelect = React.memo<TurboYearSelectProps>(({
           }
           setIsOpen(!isOpen);
         }}
-        className={`w-full min-h-12 py-2 bg-slate-50 hover:bg-slate-100/90 border rounded-xl px-2.5 sm:px-3 flex items-center justify-between gap-1 transition-all cursor-pointer select-none shadow-2xs ${
+        className={`w-full min-h-12 py-2 bg-white hover:bg-slate-50/90 border rounded-xl px-2.5 sm:px-3 flex items-center justify-between gap-1 transition-all cursor-pointer select-none shadow-2xs ${
           isOpen
             ? 'border-[#1D4ED8] ring-2 ring-blue-500/20 bg-white'
             : hasValue
@@ -713,7 +713,276 @@ const FilterFieldsContent: React.FC<FilterFieldsContentProps> = ({
 };
 
 // ----------------------------------------------------------------------
-// 4. MAIN FILTER BAR COMPONENT
+// 4. DESKTOP TURBO.AZ STYLE PERMANENT FILTER PANEL (md: and above)
+// ----------------------------------------------------------------------
+interface DesktopFilterPanelProps {
+  localFilters: FilterState;
+  onLocalChange: <K extends keyof FilterState>(key: K, value: FilterState[K]) => void;
+  onApply: () => void;
+  onReset: () => void;
+  previewCount: number;
+  sortBy: FilterState['sortBy'];
+  onSortChange: (newSort: FilterState['sortBy']) => void;
+}
+
+const DesktopFilterPanel: React.FC<DesktopFilterPanelProps> = React.memo(({
+  localFilters,
+  onLocalChange,
+  onApply,
+  onReset,
+  previewCount,
+  sortBy,
+  onSortChange
+}) => {
+  return (
+    <div className="hidden md:block bg-[#EEF1F6] rounded-2xl p-4 sm:p-5 lg:p-6 border border-slate-200/80 shadow-xs">
+      {/* 4-Column Compact Grid:
+          Row 1: Marka | Ban növü | Baza ölçüsü | Yanacaq növü
+          Row 2: Sürətlər qutusu | İl min + İl maks | Yürüş min + maks (km) | Qiymət min + maks (AZN)
+      */}
+      <div className="grid grid-cols-4 gap-3.5 lg:gap-4">
+        {/* Row 1, Col 1: Marka */}
+        <TurboMultiSelect
+          label="Marka"
+          placeholder="Bütün markalar"
+          options={BRAND_OPTIONS}
+          value={localFilters.brand}
+          onChange={(selected) => onLocalChange('brand', selected)}
+        />
+
+        {/* Row 1, Col 2: Ban növü */}
+        <TurboMultiSelect
+          label="Ban növü"
+          placeholder="Bütün ban növləri"
+          options={BODY_TYPE_OPTIONS}
+          value={localFilters.bodyType}
+          onChange={(selected) => onLocalChange('bodyType', selected)}
+        />
+
+        {/* Row 1, Col 3: Baza ölçüsü */}
+        <TurboMultiSelect
+          label="Baza ölçüsü"
+          placeholder="Bütün baza ölçüləri"
+          options={BASE_LENGTH_OPTIONS}
+          value={localFilters.baseLength}
+          onChange={(selected) => onLocalChange('baseLength', selected)}
+        />
+
+        {/* Row 1, Col 4: Yanacaq növü */}
+        <TurboMultiSelect
+          label="Yanacaq növü"
+          placeholder="Bütün yanacaq növləri"
+          options={FUEL_TYPE_OPTIONS}
+          value={localFilters.fuelType}
+          onChange={(selected) => onLocalChange('fuelType', selected)}
+        />
+
+        {/* Row 2, Col 1: Sürətlər qutusu */}
+        <TurboMultiSelect
+          label="Sürətlər qutusu"
+          placeholder="Bütün sürətlər qutuları"
+          options={TRANSMISSION_OPTIONS}
+          value={localFilters.transmission}
+          onChange={(selected) => onLocalChange('transmission', selected)}
+        />
+
+        {/* Row 2, Col 2: İl min + İl maks */}
+        <div>
+          <label className="block text-xs font-black text-slate-500 tracking-wider mb-1.5 select-none">
+            İstehsal ili
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <TurboYearSelect
+              placeholder="il, min."
+              value={localFilters.minYear}
+              years={YEARS_LIST}
+              onChange={(val) => onLocalChange('minYear', val)}
+            />
+            <TurboYearSelect
+              placeholder="il, maks."
+              value={localFilters.maxYear}
+              years={YEARS_LIST}
+              onChange={(val) => onLocalChange('maxYear', val)}
+            />
+          </div>
+        </div>
+
+        {/* Row 2, Col 3: Yürüş min + maks (km) */}
+        <div>
+          <label className="block text-xs font-black text-slate-500 tracking-wider mb-1.5 select-none">
+            Yürüş, km
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                min={0}
+                step={5000}
+                placeholder="min."
+                value={localFilters.minMileage > 0 ? localFilters.minMileage : ''}
+                onChange={(e) => onLocalChange('minMileage', e.target.value ? Number(e.target.value) : 0)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onApply();
+                  }
+                }}
+                className="w-full h-12 bg-white hover:bg-slate-50/90 border border-slate-200 focus:border-[#1D4ED8] focus:bg-white text-[#0F172A] text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 pr-7 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all placeholder:text-slate-400 placeholder:font-normal shadow-2xs"
+              />
+              {localFilters.minMileage > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onLocalChange('minMileage', 0)}
+                  className="absolute right-1.5 p-0.5 text-slate-400 hover:text-red-500 rounded-full cursor-pointer"
+                  title="Təmizlə"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                min={0}
+                step={5000}
+                placeholder="maks."
+                value={localFilters.maxMileage > 0 ? localFilters.maxMileage : ''}
+                onChange={(e) => onLocalChange('maxMileage', e.target.value ? Number(e.target.value) : 0)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onApply();
+                  }
+                }}
+                className="w-full h-12 bg-white hover:bg-slate-50/90 border border-slate-200 focus:border-[#1D4ED8] focus:bg-white text-[#0F172A] text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 pr-7 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all placeholder:text-slate-400 placeholder:font-normal shadow-2xs"
+              />
+              {localFilters.maxMileage > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onLocalChange('maxMileage', 0)}
+                  className="absolute right-1.5 p-0.5 text-slate-400 hover:text-red-500 rounded-full cursor-pointer"
+                  title="Təmizlə"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2, Col 4: Qiymət min + maks (AZN) */}
+        <div>
+          <label className="block text-xs font-black text-slate-500 tracking-wider mb-1.5 select-none">
+            Qiymət, AZN
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                min={0}
+                step={500}
+                placeholder="min."
+                value={localFilters.minPrice > 0 ? localFilters.minPrice : ''}
+                onChange={(e) => onLocalChange('minPrice', e.target.value ? Number(e.target.value) : 0)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onApply();
+                  }
+                }}
+                className="w-full h-12 bg-white hover:bg-slate-50/90 border border-slate-200 focus:border-[#1D4ED8] focus:bg-white text-[#0F172A] text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 pr-7 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all placeholder:text-slate-400 placeholder:font-normal shadow-2xs"
+              />
+              {localFilters.minPrice > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onLocalChange('minPrice', 0)}
+                  className="absolute right-1.5 p-0.5 text-slate-400 hover:text-red-500 rounded-full cursor-pointer"
+                  title="Təmizlə"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
+            <div className="relative flex items-center">
+              <input
+                type="number"
+                min={0}
+                step={500}
+                placeholder="maks."
+                value={localFilters.maxPrice > 0 ? localFilters.maxPrice : ''}
+                onChange={(e) => onLocalChange('maxPrice', e.target.value ? Number(e.target.value) : 0)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    onApply();
+                  }
+                }}
+                className="w-full h-12 bg-white hover:bg-slate-50/90 border border-slate-200 focus:border-[#1D4ED8] focus:bg-white text-[#0F172A] text-xs sm:text-sm font-bold rounded-xl px-2.5 sm:px-3 pr-7 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all placeholder:text-slate-400 placeholder:font-normal shadow-2xs"
+              />
+              {localFilters.maxPrice > 0 && (
+                <button
+                  type="button"
+                  onClick={() => onLocalChange('maxPrice', 0)}
+                  className="absolute right-1.5 p-0.5 text-slate-400 hover:text-red-500 rounded-full cursor-pointer"
+                  title="Təmizlə"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Bar */}
+      <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-300/70">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onReset}
+            className="text-xs sm:text-sm font-bold text-slate-500 hover:text-red-600 active:text-red-700 hover:bg-slate-200/60 px-3 py-2 rounded-xl transition-colors cursor-pointer select-none flex items-center gap-1.5"
+            title="Bütün filtrləri sıfırla"
+          >
+            <X className="w-4 h-4 stroke-[2.5]" />
+            <span>Sıfırla</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* Desktop Sort Selector */}
+          <div className="relative flex items-center">
+            <select
+              value={sortBy}
+              onChange={(e) => onSortChange(e.target.value as FilterState['sortBy'])}
+              className="bg-white border border-slate-200 hover:border-slate-300 text-[#0F172A] text-xs sm:text-sm rounded-xl py-2.5 sm:py-3 pl-3.5 pr-8 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-[#1D4ED8] cursor-pointer appearance-none shadow-2xs transition-colors"
+            >
+              <option value="featured">Seçilmişlər öndə</option>
+              <option value="price-asc">Qiymət: ucuzdan bahaya</option>
+              <option value="price-desc">Qiymət: bahadan ucuza</option>
+              <option value="year-desc">Buraxılış ili: ən yeni</option>
+              <option value="mileage-asc">Yürüş: ən az</option>
+            </select>
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
+          </div>
+
+          {/* Primary "Elanları göstər (N)" button */}
+          <button
+            type="button"
+            onClick={onApply}
+            className="py-2.5 sm:py-3 px-6 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] active:bg-[#1e3a8a] text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Elanları göstər ({previewCount})</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ----------------------------------------------------------------------
+// 5. MAIN FILTER BAR COMPONENT
 // ----------------------------------------------------------------------
 export const FilterBar: React.FC<FilterBarProps> = ({
   cars = [],
@@ -726,7 +995,6 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   // Local state for modal to allow fast editing and live preview count
   const [localFilters, setLocalFilters] = useState<FilterState>(filters);
-  const desktopPanelRef = useRef<HTMLDivElement>(null);
 
   // Sync local filters when prop filters change
   useEffect(() => {
@@ -751,61 +1019,18 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     };
   }, [isModalOpen]);
 
-  // Keyboard accessibility: Escape key closes the filter panel and focus is trapped inside desktop dropdown
+  // Keyboard accessibility: Escape key closes the mobile filter modal
   useEffect(() => {
     if (!isModalOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsModalOpen(false);
-        return;
-      }
-
-      if (e.key === 'Tab' && desktopPanelRef.current && window.innerWidth >= 768) {
-        const focusable = Array.from(
-          desktopPanelRef.current.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-          )
-        ).filter(el => el.offsetParent !== null);
-
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isModalOpen, setIsModalOpen]);
-
-  // Click outside listener for desktop dropdown
-  useEffect(() => {
-    if (!isModalOpen) return;
-
-    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
-      if (window.innerWidth >= 768 && desktopPanelRef.current && !desktopPanelRef.current.contains(e.target as Node)) {
-        setIsModalOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('touchstart', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('touchstart', handleClickOutside);
-    };
   }, [isModalOpen, setIsModalOpen]);
 
   // Calculate active filter count
@@ -924,115 +1149,32 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     <div id="katalog-filter" className={`w-full relative ${isModalOpen ? 'z-50' : 'z-10'}`}>
       
       {/* ========================================================
-          1. MAIN PAGE COMPACT TRIGGER (Only "Filtrlər" button & Sort)
+          1. MOBILE TRIGGER BAR (Only "Filtrlər" button & Sort, md:hidden)
          ======================================================== */}
-      <div className="flex items-center justify-between gap-3">
-        
-        {/* Main "Filtrlər" Trigger Button + Desktop Dropdown Popover */}
-        <div className="relative" ref={desktopPanelRef}>
-          <button
-            type="button"
-            onClick={handleToggleModal}
-            aria-expanded={isModalOpen}
-            aria-haspopup="dialog"
-            className={`flex items-center justify-center gap-2 sm:gap-2.5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer select-none ${
-              isFiltered
-                ? 'bg-[#1D4ED8] text-white hover:bg-[#1E40AF] ring-2 ring-blue-500/30'
-                : 'bg-slate-900 text-white hover:bg-slate-800'
-            }`}
-            title="Filtrlər"
-          >
-            <SlidersHorizontal className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
-            <span>Filtrlər</span>
-            {activeFilterCount > 0 && (
-              <span className="bg-white text-[#1D4ED8] text-xs font-black px-2 py-0.5 rounded-full shadow-xs">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-
-          {/* Desktop Anchored Dropdown Popover (md: and above) */}
-          {isModalOpen && (
-            <>
-              {/* Semi-transparent Dimmed Backdrop on Desktop */}
-              <div
-                className="hidden md:block fixed inset-0 z-40 bg-slate-900/25 backdrop-blur-[1px] transition-opacity"
-                onClick={handleCloseModal}
-                aria-hidden="true"
-              />
-
-              {/* Anchored Dropdown Panel positioned directly below the button */}
-              <div
-                role="dialog"
-                aria-modal="true"
-                aria-label="Filtrlər paneli"
-                className="hidden md:flex flex-col absolute top-full left-0 mt-2 z-50 w-[540px] max-w-[calc(100vw-32px)] bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-150 origin-top-left"
-              >
-                {/* Header with Title, Active Filter Badge, Sıfırla and Close X */}
-                <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-[#1D4ED8]" />
-                    <span className="text-sm font-black text-[#0F172A]">Filtrlər</span>
-                    {activeFilterCount > 0 && (
-                      <span className="bg-[#1D4ED8] text-white text-[10px] font-black px-1.5 py-0.5 rounded-md shadow-2xs">
-                        {activeFilterCount}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={handleReset}
-                      className="text-xs font-bold text-[#1D4ED8] hover:text-[#1E40AF] active:text-[#1e3a8a] hover:bg-blue-50 px-2 py-1 rounded-lg transition-colors cursor-pointer"
-                      title="Bütün filtrləri sıfırla"
-                    >
-                      Sıfırla
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleCloseModal}
-                      className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-lg transition-colors cursor-pointer"
-                      title="Bağla"
-                      aria-label="Filtrləri bağla"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Internal Scrollable Filter Fields Body */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 sm:space-y-4.5 max-h-[min(580px,calc(100vh-180px))] overscroll-contain">
-                  <FilterFieldsContent
-                    localFilters={localFilters}
-                    onLocalChange={handleLocalChange}
-                  />
-                </div>
-
-                {/* Footer Action: "Nəticələri göstər (X elan)" & "Sıfırla" */}
-                <div className="p-3 border-t border-slate-100 bg-white flex items-center gap-2 shrink-0 shadow-[0_-2px_10px_rgba(0,0,0,0.03)]">
-                  <button
-                    type="button"
-                    onClick={handleApply}
-                    className="flex-1 py-2.5 px-4 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] active:bg-[#1e3a8a] text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Nəticələri göstər ({previewCount} elan)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="py-2.5 px-3 rounded-xl border border-slate-200 hover:border-slate-300 text-slate-600 hover:bg-slate-50 font-bold text-xs transition-colors cursor-pointer"
-                    title="Bütün filtrləri sıfırla"
-                  >
-                    Sıfırla
-                  </button>
-                </div>
-              </div>
-            </>
+      <div className="flex md:hidden items-center justify-between gap-3">
+        {/* Mobile Filtrlər Button */}
+        <button
+          type="button"
+          onClick={handleToggleModal}
+          aria-expanded={isModalOpen}
+          aria-haspopup="dialog"
+          className={`flex items-center justify-center gap-2 sm:gap-2.5 px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-xs sm:text-sm transition-all shadow-xs cursor-pointer select-none ${
+            isFiltered
+              ? 'bg-[#1D4ED8] text-white hover:bg-[#1E40AF] ring-2 ring-blue-500/30'
+              : 'bg-slate-900 text-white hover:bg-slate-800'
+          }`}
+          title="Filtrlər"
+        >
+          <SlidersHorizontal className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+          <span>Filtrlər</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-white text-[#1D4ED8] text-xs font-black px-2 py-0.5 rounded-full shadow-xs">
+              {activeFilterCount}
+            </span>
           )}
-        </div>
+        </button>
 
-        {/* Right Side: Sort dropdown */}
+        {/* Mobile Sort dropdown */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="relative flex items-center">
             <select
@@ -1049,8 +1191,20 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" />
           </div>
         </div>
-
       </div>
+
+      {/* ========================================================
+          2. DESKTOP PERMANENT TURBO.AZ STYLE FILTER PANEL (md: and above)
+         ======================================================== */}
+      <DesktopFilterPanel
+        localFilters={localFilters}
+        onLocalChange={handleLocalChange}
+        onApply={handleApply}
+        onReset={handleReset}
+        previewCount={previewCount}
+        sortBy={filters.sortBy}
+        onSortChange={(newSort) => onFilterChange({ ...filters, sortBy: newSort })}
+      />
 
       {/* Active Filter Chips */}
       {isFiltered && (

@@ -143,6 +143,12 @@ export default function App() {
   const [transits, setTransits] = useState<TransitCar[]>(initialCatalog.cars);
   const [isLoading, setIsLoading] = useState<boolean>(!initialCatalog.hasCachedData);
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [filterVersion, setFilterVersion] = useState<number>(0);
+
+  // Soften content change: trigger fade-in when applied filters change
+  useEffect(() => {
+    setFilterVersion((v) => v + 1);
+  }, [filters]);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [favorites, setFavorites] = useState<string[]>(() => {
     try {
@@ -791,50 +797,70 @@ export default function App() {
                     </div>
                   </div>
 
+                  <style>{`
+                    @keyframes catalogFadeIn {
+                      0% { opacity: 0; }
+                      100% { opacity: 1; }
+                    }
+                    .catalog-fade-in {
+                      animation: catalogFadeIn 200ms ease-out forwards;
+                    }
+                    @media (prefers-reduced-motion: reduce) {
+                      .catalog-fade-in {
+                        animation: none !important;
+                        opacity: 1 !important;
+                      }
+                    }
+                  `}</style>
+
                   {isLoading ? (
                     <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
                       {Array.from({ length: 8 }).map((_, index) => (
                         <TransitCardSkeleton key={index} />
                       ))}
                     </div>
-                  ) : filteredTransits.length === 0 ? (
-                    <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/60 shadow-sm max-w-xl mx-auto my-8 space-y-4">
-                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#1D4ED8] flex items-center justify-center mx-auto">
-                        <FilterX className="w-8 h-8" />
-                      </div>
-                      <h3 className="text-lg font-bold text-[#0F172A]">Axtarışınıza uyğun model tapılmadı</h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        Axtarış filtrlərini və ya qiymət aralığını dəyişərək yenidən cəhd edin və ya bütün avtomobillərə baxın.
-                      </p>
-                      <button
-                        onClick={handleResetFilters}
-                        className="bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-sm transition-colors cursor-pointer"
-                      >
-                        Filtri sıfırla
-                      </button>
-                    </div>
                   ) : (
-                    <>
-                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
-                        {paginatedTransits.map((car, idx) => (
-                          <TransitCard
-                            key={car.id}
-                            car={car}
-                            onViewDetails={handleOpenDetail}
-                            isFavorite={favorites.includes(car.id)}
-                            onToggleFavorite={handleToggleFavorite}
-                            priority={idx < 4}
-                          />
-                        ))}
-                      </div>
+                    <div key={filterVersion} className="catalog-fade-in">
+                      {filteredTransits.length === 0 ? (
+                        <div className="bg-white rounded-2xl p-12 text-center border border-slate-200/60 shadow-sm max-w-xl mx-auto my-8 space-y-4">
+                          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#1D4ED8] flex items-center justify-center mx-auto">
+                            <FilterX className="w-8 h-8" />
+                          </div>
+                          <h3 className="text-lg font-bold text-[#0F172A]">Axtarışınıza uyğun model tapılmadı</h3>
+                          <p className="text-xs text-slate-500 leading-relaxed">
+                            Axtarış filtrlərini və ya qiymət aralığını dəyişərək yenidən cəhd edin və ya bütün avtomobillərə baxın.
+                          </p>
+                          <button
+                            onClick={handleResetFilters}
+                            className="bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-bold text-xs py-2.5 px-5 rounded-xl shadow-sm transition-colors cursor-pointer"
+                          >
+                            Filtri sıfırla
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-3.5 lg:gap-4">
+                            {paginatedTransits.map((car, idx) => (
+                              <TransitCard
+                                key={car.id}
+                                car={car}
+                                onViewDetails={handleOpenDetail}
+                                isFavorite={favorites.includes(car.id)}
+                                onToggleFavorite={handleToggleFavorite}
+                                priority={idx < 4}
+                              />
+                            ))}
+                          </div>
 
-                      {/* Turbo.az Style Pagination Controls */}
-                      <Pagination
-                        currentPage={safeCurrentPage}
-                        totalPages={totalPages}
-                        onPageChange={handlePageChange}
-                      />
-                    </>
+                          {/* Turbo.az Style Pagination Controls */}
+                          <Pagination
+                            currentPage={safeCurrentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                          />
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
 

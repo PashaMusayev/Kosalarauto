@@ -734,6 +734,23 @@ const DesktopFilterPanel: React.FC<DesktopFilterPanelProps> = React.memo(({
   sortBy,
   onSortChange
 }) => {
+  // Check if any field has a selected value (ignoring sortBy)
+  const hasActiveLocalFilters = useMemo(() => {
+    return (
+      parseMulti(localFilters.brand).length > 0 ||
+      parseMulti(localFilters.bodyType).length > 0 ||
+      parseMulti(localFilters.baseLength).length > 0 ||
+      parseMulti(localFilters.fuelType).length > 0 ||
+      parseMulti(localFilters.transmission).length > 0 ||
+      Boolean(localFilters.minYear && localFilters.minYear !== 'all' && localFilters.minYear !== '') ||
+      Boolean(localFilters.maxYear && localFilters.maxYear !== 'all' && localFilters.maxYear !== '') ||
+      Boolean(localFilters.minMileage && Number(localFilters.minMileage) > 0) ||
+      Boolean(localFilters.maxMileage && Number(localFilters.maxMileage) > 0) ||
+      Boolean(localFilters.minPrice && Number(localFilters.minPrice) > 0) ||
+      Boolean(localFilters.maxPrice && Number(localFilters.maxPrice) > 0)
+    );
+  }, [localFilters]);
+
   return (
     <div className="hidden md:block bg-[#EEF1F6] rounded-2xl p-4 sm:p-5 lg:p-6 border border-slate-200/80 shadow-xs">
       {/* 4-Column Compact Grid:
@@ -941,9 +958,14 @@ const DesktopFilterPanel: React.FC<DesktopFilterPanelProps> = React.memo(({
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onReset}
-            className="text-xs sm:text-sm font-bold text-slate-500 hover:text-red-600 active:text-red-700 hover:bg-slate-200/60 px-3 py-2 rounded-xl transition-colors cursor-pointer select-none flex items-center gap-1.5"
-            title="Bütün filtrləri sıfırla"
+            onClick={hasActiveLocalFilters ? onReset : undefined}
+            disabled={!hasActiveLocalFilters}
+            className={`text-xs sm:text-sm font-bold px-3 py-2 rounded-xl transition-colors select-none flex items-center gap-1.5 ${
+              hasActiveLocalFilters
+                ? 'text-red-600 hover:text-red-700 active:text-red-800 hover:bg-red-50/80 cursor-pointer'
+                : 'text-slate-400 cursor-not-allowed opacity-60'
+            }`}
+            title={hasActiveLocalFilters ? 'Bütün filtrləri sıfırla' : 'Heç bir filtr seçilməyib'}
           >
             <X className="w-4 h-4 stroke-[2.5]" />
             <span>Sıfırla</span>
@@ -980,6 +1002,107 @@ const DesktopFilterPanel: React.FC<DesktopFilterPanelProps> = React.memo(({
     </div>
   );
 });
+
+// ----------------------------------------------------------------------
+// SMOOTH SCROLL HELPER (Ease-in-out curve over ~700ms, cancellable, handles max scroll & height collapse)
+// ----------------------------------------------------------------------
+let activeScrollAnimationId: number | null = null;
+let activeScrollCleanup: (() => void) | null = null;
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+export function smoothScrollTo(
+  targetY: number,
+  durationMs: number = 700,
+  onComplete?: () => void
+): void {
+  // Cancel any in-flight animation
+  if (activeScrollAnimationId !== null) {
+    cancelAnimationFrame(activeScrollAnimationId);
+    activeScrollAnimationId = null;
+  }
+  if (activeScrollCleanup) {
+    activeScrollCleanup();
+    activeScrollCleanup = null;
+  }
+
+  if (typeof window === 'undefined') {
+    onComplete?.();
+    return;
+  }
+
+  // Respect prefers-reduced-motion (instant jump)
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  if (prefersReducedMotion) {
+    window.scrollTo({ top: targetY, behavior: 'auto' });
+    onComplete?.();
+    return;
+  }
+
+  const docElem = document.documentElement;
+  const prevScrollBehavior = docElem.style.scrollBehavior;
+  docElem.style.scrollBehavior = 'auto';
+
+  const startY = window.pageYOffset || docElem.scrollTop;
+  const startTime = performance.now();
+
+  let isCleanedUp = false;
+  const cleanup = () => {
+    if (isCleanedUp) return;
+    isCleanedUp = true;
+    docElem.style.scrollBehavior = prevScrollBehavior;
+    window.removeEventListener('wheel', cancelOnUserAction);
+    window.removeEventListener('touchstart', cancelOnUserAction);
+    window.removeEventListener('touchmove', cancelOnUserAction);
+    window.removeEventListener('keydown', cancelOnKeyDown);
+    if (activeScrollAnimationId !== null) {
+      cancelAnimationFrame(activeScrollAnimationId);
+      activeScrollAnimationId = null;
+    }
+    activeScrollCleanup = null;
+    onComplete?.();
+  };
+
+  const cancelOnUserAction = () => {
+    cleanup();
+  };
+
+  const cancelOnKeyDown = (e: KeyboardEvent) => {
+    if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
+      cleanup();
+    }
+  };
+
+  window.addEventListener('wheel', cancelOnUserAction, { passive: true });
+  window.addEventListener('touchstart', cancelOnUserAction, { passive: true });
+  window.addEventListener('touchmove', cancelOnUserAction, { passive: true });
+  window.addEventListener('keydown', cancelOnKeyDown, { passive: true });
+
+  activeScrollCleanup = cleanup;
+
+  const step = (now: number) => {
+    const elapsed = now - startTime;
+    const progress = Math.min(1, elapsed / durationMs);
+    const ease = easeInOutCubic(progress);
+
+    // Clamp target to the document's real maximum scroll at each frame
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    const clampedTarget = Math.min(targetY, maxScroll);
+    const currentY = startY + (clampedTarget - startY) * ease;
+
+    window.scrollTo(0, Math.round(currentY));
+
+    if (progress < 1) {
+      activeScrollAnimationId = requestAnimationFrame(step);
+    } else {
+      cleanup();
+    }
+  };
+
+  activeScrollAnimationId = requestAnimationFrame(step);
+}
 
 // ----------------------------------------------------------------------
 // 5. MAIN FILTER BAR COMPONENT
@@ -1120,23 +1243,39 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   }, [onFilterChange, onResetFilters]);
 
   const handleApply = useCallback(() => {
+    // 1. Prevent height-collapse jump: give results container temporary min-height
+    const catalogElem = document.getElementById('movcud-avtomobiller');
+    if (catalogElem) {
+      const currentHeight = catalogElem.offsetHeight;
+      const tempMinHeight = Math.max(currentHeight, window.innerHeight * 0.85);
+      catalogElem.style.minHeight = `${tempMinHeight}px`;
+    }
+
+    // 2. Apply filters to catalog state
     onFilterChange(localFilters);
     setIsModalOpen(false);
-    requestAnimationFrame(() => {
-      const catalogElem = document.getElementById('movcud-avtomobiller');
-      if (catalogElem) {
-        const headerElem = document.getElementById('main-header') || document.querySelector('header');
-        const measuredHeaderHeight = headerElem ? headerElem.getBoundingClientRect().height : (window.innerWidth < 640 ? 70 : 80);
-        const extraOffset = window.innerWidth < 640 ? 12 : 16;
-        const totalOffset = measuredHeaderHeight + extraOffset;
-        const elementPosition = catalogElem.getBoundingClientRect().top;
-        const offsetPosition = elementPosition + window.pageYOffset - totalOffset;
 
-        window.scrollTo({
-          top: Math.max(0, offsetPosition),
-          behavior: 'smooth'
-        });
-      }
+    // 3. Compute target after the new results have rendered
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const targetElem = document.getElementById('movcud-avtomobiller');
+        if (targetElem) {
+          const headerElem = document.getElementById('main-header') || document.querySelector('header');
+          const measuredHeaderHeight = headerElem
+            ? headerElem.getBoundingClientRect().height
+            : (window.innerWidth < 640 ? 70 : 80);
+          const extraOffset = window.innerWidth < 640 ? 12 : 16;
+          const totalOffset = measuredHeaderHeight + extraOffset;
+          const elementPosition = targetElem.getBoundingClientRect().top;
+          const targetY = Math.max(0, elementPosition + window.pageYOffset - totalOffset);
+
+          smoothScrollTo(targetY, 700, () => {
+            if (targetElem) {
+              targetElem.style.minHeight = '';
+            }
+          });
+        }
+      });
     });
   }, [localFilters, onFilterChange, setIsModalOpen]);
 

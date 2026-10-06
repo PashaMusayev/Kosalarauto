@@ -274,6 +274,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
     setDragOverImgIndex,
     cleanupBlobUrls,
     moveImage,
+    swapImages,
     moveImageLeft,
     moveImageRight,
     setAsPrimaryImage,
@@ -971,6 +972,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           onFileUpload={handleFileUpload}
           onAddImageUrl={handleAddImageUrl}
           onMoveImage={moveImage}
+          onSwapImages={swapImages}
           onMoveImageLeft={moveImageLeft}
           onMoveImageRight={moveImageRight}
           onSetAsPrimaryImage={setAsPrimaryImage}

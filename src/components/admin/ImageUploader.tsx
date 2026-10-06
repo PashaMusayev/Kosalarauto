@@ -19,7 +19,6 @@ import { FormImageItem } from './adminTypes';
 import { DEFAULT_VEHICLE_PLACEHOLDER } from '../../utils/imageFallback';
 import { formatFileSize } from '../../utils/imageCompressor';
 import { ImagePreviewModal } from './ImagePreviewModal';
-import { getActiveSwapImages } from './useCarImages';
 
 interface ImageUploaderProps {
   imagesList: FormImageItem[];
@@ -31,7 +30,7 @@ interface ImageUploaderProps {
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAddImageUrl: () => void;
   onMoveImage: (fromIndex: number, toIndex: number) => void;
-  onSwapImages?: (a: number, b: number) => void;
+  onSwapImages: (a: number, b: number) => void;
   onMoveImageLeft: (index: number) => void;
   onMoveImageRight: (index: number) => void;
   onSetAsPrimaryImage: (index: number) => void;
@@ -161,12 +160,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   const raw = e.dataTransfer.getData('text/plain');
                   const fromIndex = raw !== '' ? Number(raw) : draggedImgIndex;
                   if (fromIndex !== null && !isNaN(fromIndex) && fromIndex !== i) {
-                    const swap = onSwapImages || getActiveSwapImages();
-                    if (swap) {
-                      swap(fromIndex, i);
-                    } else {
-                      onMoveImage(fromIndex, i);
-                    }
+                    onSwapImages(fromIndex, i);
                   }
                   setDraggedImgIndex(null);
                   setDragOverImgIndex(null);

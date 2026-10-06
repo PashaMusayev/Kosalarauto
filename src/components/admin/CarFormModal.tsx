@@ -100,6 +100,7 @@ interface CarFormModalProps {
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAddImageUrl: () => void;
   onMoveImage: (fromIndex: number, toIndex: number) => void;
+  onSwapImages: (a: number, b: number) => void;
   onMoveImageLeft: (index: number) => void;
   onMoveImageRight: (index: number) => void;
   onSetAsPrimaryImage: (index: number) => void;
@@ -179,6 +180,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
   onFileUpload,
   onAddImageUrl,
   onMoveImage,
+  onSwapImages,
   onMoveImageLeft,
   onMoveImageRight,
   onSetAsPrimaryImage,
@@ -973,6 +975,7 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                 onFileUpload={onFileUpload}
                 onAddImageUrl={onAddImageUrl}
                 onMoveImage={onMoveImage}
+                onSwapImages={onSwapImages}
                 onMoveImageLeft={onMoveImageLeft}
                 onMoveImageRight={onMoveImageRight}
                 onSetAsPrimaryImage={onSetAsPrimaryImage}

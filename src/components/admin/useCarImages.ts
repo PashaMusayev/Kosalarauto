@@ -57,13 +57,6 @@ export function isHeicFile(file: File | { name?: string; type?: string }): boole
   );
 }
 
-// Module-level bridge for active swapImages so ImageUploader's drop handler can call swapImages directly
-let activeSwapImagesRef: ((a: number, b: number) => void) | null = null;
-
-export function getActiveSwapImages(): ((a: number, b: number) => void) | null {
-  return activeSwapImagesRef;
-}
-
 export function useCarImages(showToast: (msg: string) => void) {
   const [imagesList, setImagesList] = useState<FormImageItem[]>([]);
   const [primaryImage, setPrimaryImage] = useState('');
@@ -568,17 +561,6 @@ export function useCarImages(showToast: (msg: string) => void) {
       showToast(`${successCount} ədəd şəkil uğurla hazırlandı.`);
     }
   }, [primaryImage, showToast]);
-
-  // Synchronize active swapImages for ImageUploader drop handler
-  activeSwapImagesRef = swapImages;
-  useEffect(() => {
-    activeSwapImagesRef = swapImages;
-    return () => {
-      if (activeSwapImagesRef === swapImages) {
-        activeSwapImagesRef = null;
-      }
-    };
-  }, [swapImages]);
 
   return {
     imagesList,

@@ -60,6 +60,23 @@ const TRANSMISSION_OPTIONS: DropdownOption[] = [
   { value: 'Avtomat', label: 'Avtomat' }
 ];
 
+export const DEFAULT_FILTERS: FilterState = {
+  brand: 'all',
+  minYear: 'all',
+  maxYear: 'all',
+  year: 'all',
+  bodyType: 'all',
+  baseLength: 'all',
+  fuelType: 'all',
+  transmission: 'all',
+  minPrice: 0,
+  maxPrice: 0,
+  minMileage: 0,
+  maxMileage: 0,
+  searchQuery: '',
+  sortBy: 'featured'
+};
+
 const parseMulti = (val: string | string[] | undefined): string[] => {
   if (!val) return [];
   if (Array.isArray(val)) return val.filter(v => v && v !== 'all' && v !== 'Hamısı');
@@ -1202,69 +1219,31 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   const handleReset = useCallback(() => {
     const emptyFilters: FilterState = {
-      brand: [],
-      minYear: 'all',
-      maxYear: 'all',
-      year: 'all',
-      bodyType: [],
-      baseLength: [],
-      fuelType: [],
-      transmission: [],
-      minPrice: 0,
-      maxPrice: 0,
-      minMileage: 0,
-      maxMileage: 0,
-      searchQuery: '',
-      sortBy: 'featured'
+      ...DEFAULT_FILTERS,
+      sortBy: localFilters.sortBy || 'featured'
     };
     setLocalFilters(emptyFilters);
-  }, []);
+  }, [localFilters.sortBy]);
 
   const handleResetAllAndApply = useCallback(() => {
     const emptyFilters: FilterState = {
-      brand: [],
-      minYear: 'all',
-      maxYear: 'all',
-      year: 'all',
-      bodyType: [],
-      baseLength: [],
-      fuelType: [],
-      transmission: [],
-      minPrice: 0,
-      maxPrice: 0,
-      minMileage: 0,
-      maxMileage: 0,
-      searchQuery: '',
-      sortBy: 'featured'
-    };
-    setLocalFilters(emptyFilters);
-    onFilterChange(emptyFilters);
-    onResetFilters();
-  }, [onFilterChange, onResetFilters]);
-
-  const handleDesktopReset = useCallback(() => {
-    const emptyFilters: FilterState = {
-      brand: [],
-      minYear: 'all',
-      maxYear: 'all',
-      year: 'all',
-      bodyType: [],
-      baseLength: [],
-      fuelType: [],
-      transmission: [],
-      minPrice: 0,
-      maxPrice: 0,
-      minMileage: 0,
-      maxMileage: 0,
-      searchQuery: '',
+      ...DEFAULT_FILTERS,
       sortBy: filters.sortBy || 'featured'
     };
     setLocalFilters(emptyFilters);
+    onFilterChange(emptyFilters);
+  }, [filters.sortBy, onFilterChange]);
+
+  const handleDesktopReset = useCallback(() => {
+    const clearedFilters: FilterState = {
+      ...DEFAULT_FILTERS,
+      sortBy: filters.sortBy || localFilters.sortBy || 'featured'
+    };
+    setLocalFilters(clearedFilters);
     if (isFiltered) {
-      onFilterChange(emptyFilters);
-      onResetFilters();
+      onFilterChange(clearedFilters);
     }
-  }, [filters.sortBy, isFiltered, onFilterChange, onResetFilters]);
+  }, [filters.sortBy, localFilters.sortBy, isFiltered, onFilterChange]);
 
   const handleApply = useCallback(() => {
     // 0. Cancel any existing active scroll and cleanup previous state

@@ -20,9 +20,10 @@ interface DetailPhotoGridProps {
 }
 
 // Module-level cache for orientation detection (true = landscape, false = portrait)
-const orientationCache = new Map<string, boolean>();
+export const orientationCache = new Map<string, boolean>();
+const inFlightProbes = new Map<string, Promise<boolean>>();
 
-function isLandscapeUrl(url: string): boolean {
+export function isLandscapeUrl(url: string): boolean {
   return orientationCache.get(url) === true;
 }
 
@@ -30,22 +31,28 @@ function isLandscapeUrl(url: string): boolean {
  * Probes the image's natural dimensions via Image().
  * Landscape = width / height >= 1.15
  */
-function probeImageOrientation(img: string): Promise<boolean> {
+export function probeImageOrientation(img: string): Promise<boolean> {
   const fullImgUrl = getValidImageUrl(img);
   if (orientationCache.has(fullImgUrl)) {
     return Promise.resolve(orientationCache.get(fullImgUrl)!);
   }
+  if (inFlightProbes.has(fullImgUrl)) {
+    return inFlightProbes.get(fullImgUrl)!;
+  }
 
   const thumbUrl = getThumbnailUrl(fullImgUrl);
-  return new Promise<boolean>((resolve) => {
+  const promise = new Promise<boolean>((resolve) => {
     const probe = new Image();
     probe.referrerPolicy = 'no-referrer';
 
     let resolved = false;
-    const finish = (isLandscape: boolean) => {
+    const finish = (isLandscape: boolean, isReal: boolean) => {
       if (resolved) return;
       resolved = true;
-      orientationCache.set(fullImgUrl, isLandscape);
+      inFlightProbes.delete(fullImgUrl);
+      if (isReal) {
+        orientationCache.set(fullImgUrl, isLandscape);
+      }
       resolve(isLandscape);
     };
 
@@ -53,9 +60,9 @@ function probeImageOrientation(img: string): Promise<boolean> {
       const w = probe.naturalWidth || probe.width;
       const h = probe.naturalHeight || probe.height;
       if (w > 0 && h > 0) {
-        finish((w / h) >= 1.15);
+        finish((w / h) >= 1.15, true);
       } else {
-        finish(false); // Unknown defaults to portrait
+        finish(false, false);
       }
     };
 
@@ -63,7 +70,7 @@ function probeImageOrientation(img: string): Promise<boolean> {
       if (probe.src !== fullImgUrl) {
         probe.src = fullImgUrl;
       } else {
-        finish(false);
+        finish(false, false);
       }
     };
 
@@ -71,88 +78,96 @@ function probeImageOrientation(img: string): Promise<boolean> {
     if (probe.complete && probe.naturalWidth > 0) {
       const w = probe.naturalWidth;
       const h = probe.naturalHeight;
-      finish((w / h) >= 1.15);
+      finish((w / h) >= 1.15, true);
     }
   });
+
+  inFlightProbes.set(fullImgUrl, promise);
+  return promise;
 }
 
-interface GridPairRow {
+export function probeImagesOrientations(images: string[]): void {
+  if (!images || images.length === 0) return;
+  for (const img of images) {
+    probeImageOrientation(img);
+  }
+}
+
+export interface GridPairRow {
   type: 'pair';
-  items: { img: string; index: number }[];
+  items: [
+    { img: string; index: number },
+    { img: string; index: number }
+  ];
 }
 
-interface GridWideRow {
-  type: 'wide';
+export interface GridLandscapeRow {
+  type: 'landscape';
   item: { img: string; index: number };
-  aspect: '5/3' | '4/5';
 }
 
-type GridRow = GridPairRow | GridWideRow;
+export interface GridSinglePortraitRow {
+  type: 'single-portrait';
+  item: { img: string; index: number };
+}
+
+export type GridRow = GridPairRow | GridLandscapeRow | GridSinglePortraitRow;
 
 /**
- * Orientation-aware row building preserving exact photo order:
- * - Start with a pair. After a pair, next row wants to be wide.
- * - If wide is wanted AND next image is landscape -> render as wide tile (5:3).
- * - Otherwise render the next two images as a pair (4:5 tiles), and next row wants to be wide again.
- * - Last image left alone: landscape -> wide tile (5:3); portrait -> full-width 4:5 tile so it is not cropped.
+ * Shape-based row builder:
+ * - Every LANDSCAPE photo gets its own full-width tile. Consecutive landscapes are simply stacked.
+ * - PORTRAIT photos are ALWAYS shown in pairs, side by side. If a portrait's next photo is landscape,
+ *   pull the next available portrait from later in the list to complete the pair, and place the landscape(s) below that pair.
+ * - If no other portrait remains -> a single full-width portrait tile.
  */
-function buildOrientationAwareRows(
+export function buildShapeBasedRows(
   images: string[],
   isLandscapeFn: (img: string) => boolean
 ): GridRow[] {
   const rows: GridRow[] = [];
-  let i = 0;
-  let wantsWide = false; // Start with a pair
+  const remaining = images.map((_, i) => i);
 
-  while (i < images.length) {
-    const remaining = images.length - i;
+  while (remaining.length > 0) {
+    const firstIdx = remaining[0];
+    const isLand = isLandscapeFn(images[firstIdx]);
 
-    // Last image left alone:
-    if (remaining === 1) {
-      const isLand = isLandscapeFn(images[i]);
+    if (isLand) {
+      // Landscape -> full-width landscape row (4:3 aspect)
       rows.push({
-        type: 'wide',
-        item: { img: images[i], index: i },
-        aspect: isLand ? '5/3' : '4/5'
+        type: 'landscape',
+        item: { img: images[firstIdx], index: firstIdx }
       });
-      i += 1;
-      break;
-    }
+      remaining.splice(0, 1);
+    } else {
+      // Portrait -> find next remaining portrait anywhere after it to make a pair
+      let partnerIdxInRemaining = -1;
+      for (let j = 1; j < remaining.length; j++) {
+        const candidateIdx = remaining[j];
+        if (!isLandscapeFn(images[candidateIdx])) {
+          partnerIdxInRemaining = j;
+          break;
+        }
+      }
 
-    if (wantsWide) {
-      const isLand = isLandscapeFn(images[i]);
-      if (isLand) {
-        // Wide row is wanted AND next image is landscape -> render as wide tile (5:3)
-        rows.push({
-          type: 'wide',
-          item: { img: images[i], index: i },
-          aspect: '5/3'
-        });
-        i += 1;
-        wantsWide = false; // Next row after wide wants to be pair
-      } else {
-        // Next image is portrait -> render the next two as a pair (4:5 tiles), and next row wants wide again
+      if (partnerIdxInRemaining !== -1) {
+        const partnerIdx = remaining[partnerIdxInRemaining];
         rows.push({
           type: 'pair',
           items: [
-            { img: images[i], index: i },
-            { img: images[i + 1], index: i + 1 }
+            { img: images[firstIdx], index: firstIdx },
+            { img: images[partnerIdx], index: partnerIdx }
           ]
         });
-        i += 2;
-        wantsWide = true;
+        remaining.splice(partnerIdxInRemaining, 1);
+        remaining.splice(0, 1);
+      } else {
+        // No other portrait remains -> single full-width portrait tile (4:5 aspect)
+        rows.push({
+          type: 'single-portrait',
+          item: { img: images[firstIdx], index: firstIdx }
+        });
+        remaining.splice(0, 1);
       }
-    } else {
-      // Pair row (start with a pair or after a wide)
-      rows.push({
-        type: 'pair',
-        items: [
-          { img: images[i], index: i },
-          { img: images[i + 1], index: i + 1 }
-        ]
-      });
-      i += 2;
-      wantsWide = true; // After a pair, next row wants to be wide
     }
   }
 
@@ -160,7 +175,7 @@ function buildOrientationAwareRows(
 }
 
 /**
- * Wide tile (full width, landscape aspect 5:3 or full-width portrait aspect 4:5).
+ * Wide tile (full width: landscape 4:3 or single portrait 4:5).
  * Uses full-size image (1200px) with thumbnail placeholder underneath until loaded.
  */
 interface WideGridTileProps {
@@ -168,7 +183,7 @@ interface WideGridTileProps {
   index: number;
   title: string;
   isEager: boolean;
-  aspect?: '5/3' | '4/5';
+  aspect?: '4/3' | '4/5';
   onSelect: (index: number) => void;
 }
 
@@ -177,7 +192,7 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
   index,
   title,
   isEager,
-  aspect = '5/3',
+  aspect = '4/3',
   onSelect
 }) => {
   const fullImgUrl = getValidImageUrl(img);
@@ -194,7 +209,7 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
   };
 
   const showThumbPlaceholder = placeholderVisible && !thumbFailed && thumbUrl !== fullImgUrl;
-  const aspectClass = aspect === '4/5' ? 'aspect-[4/5]' : 'aspect-[5/3]';
+  const aspectClass = aspect === '4/5' ? 'aspect-[4/5]' : 'aspect-[4/3]';
 
   return (
     <button
@@ -241,7 +256,7 @@ const WideGridTile: React.FC<WideGridTileProps> = ({
 };
 
 /**
- * Pair tile (half width, portrait-ish aspect 4:5).
+ * Pair tile (half width, portrait aspect 4:5).
  * Uses thumbnail (800px) with failed thumbnail fallback.
  */
 interface PairGridTileProps {
@@ -326,7 +341,9 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
     }
   }, [isOpen, imagesList]);
 
-  // Orientation probing with 1.5s timeout: unresolved defaults to portrait
+  // Orientation probing with ~4s timeout.
+  // Critical: Unresolved images are NOT permanently cached as false!
+  // They safely fallback to portrait for this render while the background probe finishes.
   useEffect(() => {
     if (!isOpen || imagesList.length === 0) return;
 
@@ -344,14 +361,9 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
 
     const timer = setTimeout(() => {
       if (!isMounted) return;
-      for (const img of unknownImages) {
-        const key = getValidImageUrl(img);
-        if (!orientationCache.has(key)) {
-          orientationCache.set(key, false); // Safe default: portrait
-        }
-      }
+      // Timeout fallback: unblock rendering safely without corrupting orientationCache
       setIsReady(true);
-    }, 1500);
+    }, 4000);
 
     Promise.all(probes).then(() => {
       if (!isMounted) return;
@@ -421,9 +433,9 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
     };
   }, [headerTitle, title, mileage]);
 
-  // Compute orientation-aware rows once orientations are known
+  // Compute shape-based rows using orientation cache (Phase 67e)
   const rows = useMemo(() => {
-    return buildOrientationAwareRows(imagesList, (img) => isLandscapeUrl(getValidImageUrl(img)));
+    return buildShapeBasedRows(imagesList, (img) => isLandscapeUrl(getValidImageUrl(img)));
   }, [imagesList, isReady]);
 
   return (
@@ -490,16 +502,16 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
             </button>
           </div>
 
-          {/* Mosaic Layout (Orientation-aware 2-1-2-1 təkrar olunan qrid - Turbo.az Mobil Tərzi) */}
+          {/* Mosaic Layout (Shape-based layout - Turbo.az Mobil Tərzi) */}
           {!isReady ? (
-            /* Neutral skeleton placeholder while sizes probe (at most 1.5s, usually instant) */
+            /* Neutral skeleton placeholder while sizes probe (at most 4s, usually instant) */
             <div className="flex-1 overflow-hidden bg-[#EEF1F6]">
               <div className="flex flex-col gap-2 pt-2 bg-[#EEF1F6] w-full animate-pulse">
                 <div className="grid grid-cols-2 gap-2 w-full">
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                 </div>
-                <div className="w-full aspect-[5/3] bg-slate-200" />
+                <div className="w-full aspect-[4/3] bg-slate-200" />
                 <div className="grid grid-cols-2 gap-2 w-full">
                   <div className="w-full aspect-[4/5] bg-slate-200" />
                   <div className="w-full aspect-[4/5] bg-slate-200" />
@@ -523,7 +535,7 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
                             img={item.img}
                             index={item.index}
                             title={title}
-                            isEager={item.index < 3}
+                            isEager={rowIdx < 2}
                             onSelect={handleSelect}
                           />
                         ))}
@@ -531,15 +543,32 @@ export const DetailPhotoGrid: React.FC<DetailPhotoGridProps> = ({
                     );
                   }
 
+                  if (row.type === 'landscape') {
+                    return (
+                      <div key={`row-${rowIdx}`} className="w-full">
+                        <WideGridTile
+                          key={`photo-grid-land-${row.item.index}`}
+                          img={row.item.img}
+                          index={row.item.index}
+                          title={title}
+                          isEager={rowIdx < 2}
+                          aspect="4/3"
+                          onSelect={handleSelect}
+                        />
+                      </div>
+                    );
+                  }
+
+                  // Single leftover portrait (full width 4:5)
                   return (
                     <div key={`row-${rowIdx}`} className="w-full">
                       <WideGridTile
-                        key={`photo-grid-wide-${row.item.index}`}
+                        key={`photo-grid-port-single-${row.item.index}`}
                         img={row.item.img}
                         index={row.item.index}
                         title={title}
-                        isEager={row.item.index < 3}
-                        aspect={row.aspect}
+                        isEager={rowIdx < 2}
+                        aspect="4/5"
                         onSelect={handleSelect}
                       />
                     </div>

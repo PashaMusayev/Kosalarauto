@@ -26,7 +26,7 @@ import { DetailFeaturesAndShowroom } from './detail/DetailFeaturesAndShowroom';
 import { DetailSimilarCars } from './detail/DetailSimilarCars';
 import { DetailMobileBottomBar } from './detail/DetailMobileBottomBar';
 import { DetailLightbox } from './detail/DetailLightbox';
-import { DetailPhotoGrid } from './detail/DetailPhotoGrid';
+import { DetailPhotoGrid, probeImagesOrientations } from './detail/DetailPhotoGrid';
 
 export { formatBrandDisplayName, formatModelDisplayName };
 
@@ -265,8 +265,8 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
     return list.length > 0 ? list : [DEFAULT_VEHICLE_PLACEHOLDER];
   }, [car]);
 
-  // Progressive Preloading: Detail pəncərəsi açılanda və ya maşın dəyişəndə
-  // bütün şəkillərin kiçik miniatürlərini (thumbnails ~20-50KB) dərhal arxa fonda yüklə
+  // Progressive Preloading & Early Orientation Probing: Detail pəncərəsi açılanda və ya maşın dəyişəndə
+  // bütün şəkillərin kiçik miniatürlərini dərhal arxa fonda yüklə və oriyentasiyalarını qabaqcadan təyin et
   useEffect(() => {
     if (imagesList && imagesList.length > 0) {
       // 1. Dərhal maşının BÜTÜN şəkillərinin miniatürlərini yüklə (failed olanları burax)
@@ -277,6 +277,9 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
 
       // 2. Mövcud tam ölçülü prefetch pəncərəsini qoru (ilk 4 şəkil)
       prefetchImages(imagesList.slice(0, 4));
+
+      // 3. Early Orientation Probing (Phase 67e): Qalereya açılmadan öncə bütün şəkillərin oriyentasiyalarını arxa fonda təyin et
+      probeImagesOrientations(imagesList);
     }
   }, [imagesList]);
 

@@ -1242,7 +1242,36 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     onResetFilters();
   }, [onFilterChange, onResetFilters]);
 
+  const handleDesktopReset = useCallback(() => {
+    const emptyFilters: FilterState = {
+      brand: [],
+      minYear: 'all',
+      maxYear: 'all',
+      year: 'all',
+      bodyType: [],
+      baseLength: [],
+      fuelType: [],
+      transmission: [],
+      minPrice: 0,
+      maxPrice: 0,
+      minMileage: 0,
+      maxMileage: 0,
+      searchQuery: '',
+      sortBy: filters.sortBy || 'featured'
+    };
+    setLocalFilters(emptyFilters);
+    if (isFiltered) {
+      onFilterChange(emptyFilters);
+      onResetFilters();
+    }
+  }, [filters.sortBy, isFiltered, onFilterChange, onResetFilters]);
+
   const handleApply = useCallback(() => {
+    // 0. Cancel any existing active scroll and cleanup previous state
+    if (activeScrollCleanup) {
+      activeScrollCleanup();
+    }
+
     // 1. Prevent height-collapse jump: give results container temporary min-height
     const catalogElem = document.getElementById('movcud-avtomobiller');
     if (catalogElem) {
@@ -1339,7 +1368,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         localFilters={localFilters}
         onLocalChange={handleLocalChange}
         onApply={handleApply}
-        onReset={handleReset}
+        onReset={handleDesktopReset}
         previewCount={previewCount}
         sortBy={filters.sortBy}
         onSortChange={(newSort) => onFilterChange({ ...filters, sortBy: newSort })}

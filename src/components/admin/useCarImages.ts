@@ -88,6 +88,19 @@ export function useCarImages(showToast: (msg: string) => void) {
     });
   }, []);
 
+  const swapImages = useCallback((a: number, b: number) => {
+    if (a === b || a < 0 || b < 0) return;
+    setImagesList(prev => {
+      if (a >= prev.length || b >= prev.length) return prev;
+      const updated = [...prev];
+      const temp = updated[a];
+      updated[a] = updated[b];
+      updated[b] = temp;
+      setPrimaryImage(updated[0]?.url || '');
+      return updated;
+    });
+  }, []);
+
   const moveImageLeft = useCallback((index: number) => {
     if (index > 0) moveImage(index, index - 1);
   }, [moveImage]);

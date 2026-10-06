@@ -62,9 +62,16 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
     }
   };
 
+  const isAdmin = variant === 'admin';
+  const isSold = car?.status === 'sold';
+
   return (
     <div 
-      className="bg-white rounded-lg sm:rounded-xl border border-slate-200/50 shadow-sm transition-[transform,box-shadow] duration-200 [@media(hover:hover)]:hover:shadow-md [@media(hover:hover)]:hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer"
+      className={`rounded-lg sm:rounded-xl border transition-[transform,box-shadow,border-color] duration-200 [@media(hover:hover)]:hover:shadow-md [@media(hover:hover)]:hover:-translate-y-0.5 flex flex-col overflow-hidden group cursor-pointer ${
+        isAdmin 
+          ? 'bg-slate-900 border-slate-800 hover:border-slate-700 shadow-md text-slate-100' 
+          : 'bg-white border-slate-200/50 shadow-sm'
+      }`}
       onClick={() => {
         if (onCardClick) {
           onCardClick(car);
@@ -76,11 +83,19 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
       onTouchStart={handlePrefetch}
     >
       {/* Top Image Section (Turbo.az Style 4:3 Aspect, Static Primary Image) */}
-      <div className="relative aspect-[4/3] bg-slate-100 overflow-hidden flex items-center justify-center select-none">
+      <div className={`relative aspect-[4/3] overflow-hidden flex items-center justify-center select-none ${
+        isAdmin ? 'bg-slate-950' : 'bg-slate-100'
+      }`}>
         {/* Shimmer loading state if image not loaded yet */}
         {!imageLoaded && (
-          <div className="absolute inset-0 bg-slate-100 overflow-hidden pointer-events-none z-0">
-            <div className="absolute inset-0 bg-gradient-to-r from-slate-100 via-slate-200/80 to-slate-100 animate-shimmer" />
+          <div className={`absolute inset-0 overflow-hidden pointer-events-none z-0 ${
+            isAdmin ? 'bg-slate-950' : 'bg-slate-100'
+          }`}>
+            <div className={`absolute inset-0 animate-shimmer ${
+              isAdmin 
+                ? 'bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950' 
+                : 'bg-gradient-to-r from-slate-100 via-slate-200/80 to-slate-100'
+            }`} />
           </div>
         )}
 
@@ -97,23 +112,25 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
           }}
           className={`w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300 relative z-[1] select-none ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
+          } ${
+            isAdmin && isSold ? 'filter saturate-[0.45] brightness-[0.8] opacity-85' : ''
           }`}
           loading={priority ? 'eager' : 'lazy'}
           fetchPriority={priority ? 'high' : 'auto'}
           decoding="async"
         />
 
-        {/* Admin Sold Overlay (PART 2) */}
-        {variant === 'admin' && car?.status === 'sold' && (
-          <div className="absolute inset-0 bg-slate-950/65 backdrop-blur-[1px] flex items-center justify-center z-15 pointer-events-none">
-            <div className="bg-red-600/95 text-white font-black text-xs sm:text-sm tracking-widest px-3.5 py-1 rounded-md shadow-xl border border-red-400/80 uppercase rotate-[-6deg] select-none">
+        {/* Admin Sold Yellow Corner Ribbon (PART 4) */}
+        {isAdmin && isSold && (
+          <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-20">
+            <div className="absolute top-[18px] -left-[28px] -rotate-45 w-[112px] bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider py-0.5 text-center shadow-md border-y border-amber-300 uppercase select-none">
               SATILDI
             </div>
           </div>
         )}
 
         {/* Favorite Button (Heart) - only when not in admin and not hidden */}
-        {variant !== 'admin' && !hideFavorite && (
+        {!isAdmin && !hideFavorite && (
           <button
             type="button"
             onClick={(e) => {
@@ -151,37 +168,55 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
       <div className="p-2 sm:p-2.5 flex-1 flex flex-col justify-between space-y-1">
         
         <div className="space-y-0.5 min-w-0">
-          {/* Price - Bold & Clear (Turbo.az style: e.g. 25 500 AZN) */}
+          {/* Price - Bold & Clear */}
           <div className="flex items-baseline justify-between">
-            <span className="text-[15px] sm:text-base font-bold text-slate-900 tracking-tight">
-              {safePrice.toLocaleString()} <span className="text-xs sm:text-[13px] font-bold text-slate-800">AZN</span>
+            <span className={`tracking-tight ${
+              isAdmin 
+                ? 'text-[15px] sm:text-base font-extrabold text-emerald-400' 
+                : 'text-[15px] sm:text-base font-bold text-slate-900'
+            }`}>
+              {safePrice.toLocaleString()} <span className={`font-bold ${
+                isAdmin 
+                  ? 'text-xs sm:text-[13px] text-emerald-300' 
+                  : 'text-xs sm:text-[13px] text-slate-800'
+              }`}>AZN</span>
             </span>
           </div>
 
-          {/* Car Title / Model - Turbo.az style */}
+          {/* Car Title / Model */}
           <h3 
-            className="font-normal text-xs sm:text-[13px] text-slate-800 group-hover:text-blue-600 transition-colors truncate leading-tight"
+            className={`truncate leading-tight transition-colors ${
+              isAdmin 
+                ? 'font-bold text-xs sm:text-[13px] text-slate-100 group-hover:text-blue-400' 
+                : 'font-normal text-xs sm:text-[13px] text-slate-800 group-hover:text-blue-600'
+            }`}
             title={safeTitle}
           >
             {safeTitle}
           </h3>
 
-          {/* Specifications Row (Year, Engine, Mileage) - Pure black color */}
-          <p className="text-[11px] sm:text-xs text-black font-normal truncate leading-tight">
+          {/* Specifications Row (Year, Engine, Mileage) */}
+          <p className={`truncate leading-tight font-normal text-[11px] sm:text-xs ${
+            isAdmin ? 'text-slate-400' : 'text-black'
+          }`}>
             {safeYear ? `${safeYear}, ` : ''}{safeEngine ? `${safeEngine} L, ` : ''}{safeMileage.toLocaleString()} km
           </p>
         </div>
 
         {/* Bottom City / Date */}
-        <div className="pt-1 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400">
-          <span className="truncate text-slate-400 font-normal">
+        <div className={`pt-1 flex items-center justify-between text-[10px] sm:text-[11px] ${
+          isAdmin ? 'text-slate-500 font-medium' : 'text-slate-400 font-normal'
+        }`}>
+          <span className="truncate">
             {safeLocation}
           </span>
         </div>
 
         {/* Optional children slot (e.g. Admin listing quality warnings pill) */}
         {children && (
-          <div className="pt-1.5 border-t border-slate-100/90 mt-1" onClick={(e) => e.stopPropagation()}>
+          <div className={`pt-1.5 mt-1 border-t ${
+            isAdmin ? 'border-slate-800/80' : 'border-slate-100/90'
+          }`} onClick={(e) => e.stopPropagation()}>
             {children}
           </div>
         )}

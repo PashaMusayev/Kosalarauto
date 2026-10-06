@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { 
   Edit3, 
   X, 
@@ -12,7 +12,9 @@ import {
   Check, 
   RefreshCw, 
   Save,
-  ShieldCheck
+  ShieldCheck,
+  CheckCircle2,
+  ChevronDown
 } from 'lucide-react';
 import { 
   FormImageItem, 
@@ -26,6 +28,8 @@ import {
 import { ImageUploader } from './ImageUploader';
 import { STORAGE_BUCKET_NAME } from '../../services/supabaseClientInit';
 import { CanonicalBadge, CANONICAL_STATUS_BADGES } from '../../data/badges';
+import { TransitCar } from '../../types';
+import { getListingQualityIssues } from '../../utils/listingQuality';
 
 interface CarFormModalProps {
   isOpen: boolean;
@@ -203,9 +207,33 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
     }
   };
 
+  // PHASE 73 PART 3: Live listing quality recommendations panel computed from form state
+  const liveIssues = useMemo(() => {
+    const validPhotos = (imagesList || []).filter(img => !img.error);
+    const mockCar: Partial<TransitCar> = {
+      images: validPhotos.map(img => img.url || 'temp-img'),
+      primaryImage: validPhotos[0]?.url || '',
+      description: description || '',
+      statusBadges: selectedStatusBadges || [],
+      badges: selectedStatusBadges || [],
+      hp: typeof hp === 'number' ? hp : (Number(hp) || undefined)
+    };
+    return getListingQualityIssues(mockCar as TransitCar);
+  }, [imagesList, description, selectedStatusBadges, hp]);
+
+  const [mobileWarningsExpanded, setMobileWarningsExpanded] = useState(false);
+
+  const getIssueAction = (issue: string): { tab: 'basics' | 'features' | 'media'; label: string } => {
+    if (issue.includes('şəkil')) return { tab: 'media', label: 'Şəkillərə keç' };
+    if (issue.includes('Təsvir')) return { tab: 'media', label: 'Qeydə keç' };
+    if (issue.includes('Status')) return { tab: 'features', label: 'Statusa keç' };
+    if (issue.includes('gücü')) return { tab: 'basics', label: 'Mühərrikə keç' };
+    return { tab: 'basics', label: 'Düzəliş et' };
+  };
+
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-1.5 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-700 rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl w-full max-h-[96vh] sm:max-h-[92vh] flex flex-col overflow-hidden text-slate-200">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl sm:rounded-2xl shadow-2xl max-w-4xl lg:max-w-5xl xl:max-w-6xl w-full max-h-[96vh] sm:max-h-[92vh] flex flex-col overflow-hidden text-slate-200">
         
         {/* Header */}
         <div className="bg-slate-950 px-3.5 sm:px-6 py-3 sm:py-4 border-b border-slate-800 flex items-center justify-between gap-2">
@@ -294,10 +322,74 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
             </button>
           </div>
 
-          {/* Form Content: Tab Views (Scrollable) */}
-          <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 space-y-4 sm:space-y-6">
-            {/* TAB 1: ƏSAS VƏ MÜHƏRRİK */}
-            <div className={activeModalTab === 'basics' ? 'space-y-4 sm:space-y-6 block' : 'hidden'}>
+          {/* Form Content: Tab Views + Live Quality Warnings Panel (Scrollable) */}
+          <div className="flex-1 overflow-y-auto p-3.5 sm:p-6">
+            {/* Mobile / Tablet Collapsible Warnings Bar (lg:hidden) */}
+            <div className="lg:hidden mb-4">
+              {liveIssues.length === 0 ? (
+                <div className="bg-emerald-950/40 border border-emerald-800/60 text-emerald-300 rounded-xl px-3.5 py-2.5 flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-2 text-xs font-bold">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Bütün tövsiyələr yerinə yetirilib</span>
+                  </div>
+                  <span className="text-[10px] font-mono bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30 font-bold">
+                    4/4 Tam
+                  </span>
+                </div>
+              ) : (
+                <div className="bg-amber-950/30 border border-amber-800/60 rounded-xl overflow-hidden shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setMobileWarningsExpanded(prev => !prev)}
+                    className="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-amber-300 hover:bg-amber-900/20 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="font-extrabold text-xs truncate">
+                        Tövsiyələr ({liveIssues.length} qeyd)
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] text-amber-400/80 font-medium">
+                        {mobileWarningsExpanded ? 'Gizlət' : 'Göstər'}
+                      </span>
+                      <ChevronDown className={`w-4 h-4 text-amber-400 transition-transform duration-200 ${mobileWarningsExpanded ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {mobileWarningsExpanded && (
+                    <div className="px-3.5 pb-3 pt-1 border-t border-amber-900/40 space-y-2 bg-slate-950/40">
+                      <ul className="space-y-1.5 text-xs text-slate-300">
+                        {liveIssues.map((issue, idx) => {
+                          const action = getIssueAction(issue);
+                          return (
+                            <li key={idx} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-800">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-amber-400 font-black">•</span>
+                                <span className="text-slate-200 text-[11px] truncate">{issue}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalTab(action.tab)}
+                                className="text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-blue-950/60 hover:bg-blue-900/60 px-2 py-0.5 rounded border border-blue-800/60 whitespace-nowrap cursor-pointer shrink-0 transition-colors"
+                              >
+                                {action.label} →
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-5 items-start">
+              {/* Form Tab Panels */}
+              <div className="flex-1 min-w-0 w-full space-y-4 sm:space-y-6">
+                {/* TAB 1: ƏSAS VƏ MÜHƏRRİK */}
+                <div className={activeModalTab === 'basics' ? 'space-y-4 sm:space-y-6 block' : 'hidden'}>
               {/* SECTION 1: ƏSAS MƏLUMATLAR & QİYMƏT */}
               <div className="bg-slate-950 p-4 sm:p-5 rounded-xl border border-slate-800 space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
@@ -1006,6 +1098,78 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
                   <ArrowLeft className="w-4 h-4" />
                   <span>Əvvəlki: Təchizat və Status</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+              {/* Desktop Sticky Live Warnings Panel (hidden lg:block) */}
+              <div className="hidden lg:block w-64 xl:w-72 shrink-0 sticky top-0">
+                <div className="bg-slate-950 rounded-xl border border-slate-800 p-4 space-y-3.5 shadow-lg">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      {liveIssues.length === 0 ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                      ) : (
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                      )}
+                      <h4 className="text-xs font-black text-white uppercase tracking-wider">
+                        Tövsiyələr
+                      </h4>
+                    </div>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                      liveIssues.length === 0
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    }`}>
+                      {4 - liveIssues.length} / 4
+                    </span>
+                  </div>
+
+                  {liveIssues.length === 0 ? (
+                    <div className="p-3.5 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-center space-y-2">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
+                      <p className="text-xs font-extrabold text-emerald-300">
+                        Bütün tövsiyələr yerinə yetirilib
+                      </p>
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Elan tam məlumatlıdır və alıcılar üçün yüksək etibar yaradır.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] text-slate-400 leading-snug">
+                        Elanın keyfiyyətini artırmaq üçün tövsiyə olunan bəndlər:
+                      </p>
+                      <ul className="space-y-2">
+                        {liveIssues.map((issue, idx) => {
+                          const action = getIssueAction(issue);
+                          return (
+                            <li 
+                              key={idx}
+                              className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 hover:border-slate-700 transition-colors flex flex-col gap-1.5"
+                            >
+                              <div className="flex items-start gap-1.5 text-[11px] text-slate-200">
+                                <span className="text-amber-400 font-black shrink-0 mt-0.5">•</span>
+                                <span className="leading-snug">{issue}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setActiveModalTab(action.tab)}
+                                className="self-end text-[10px] font-bold text-blue-400 hover:text-blue-300 bg-blue-950/50 hover:bg-blue-900/50 px-2 py-0.5 rounded border border-blue-800/60 cursor-pointer transition-colors"
+                              >
+                                {action.label} →
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-slate-800/80 text-[10px] text-slate-500 leading-tight">
+                    💡 Tövsiyələr form doldurulduqca avtomatik yenilənir.
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   CheckSquare, 
@@ -14,61 +14,62 @@ import { DEFAULT_VEHICLE_PLACEHOLDER, getValidImageUrl, getThumbnailUrl, handleT
 import { TransitCard } from '../TransitCard';
 import { getListingQualityIssues } from '../../utils/listingQuality';
 
-const ListingQualityPill: React.FC<{ car: TransitCar }> = ({ car }) => {
+interface ActiveWarningPopover {
+  carId: string | number;
+  openedBy: 'click' | 'hover';
+  top?: number;
+  bottom?: number;
+  left: number;
+  issues: string[];
+}
+
+interface ListingQualityPillProps {
+  car: TransitCar;
+  isActive: boolean;
+  onPillClick: (e: React.MouseEvent<HTMLButtonElement>, car: TransitCar, issues: string[]) => void;
+  onPillMouseEnter: (e: React.MouseEvent<HTMLButtonElement>, car: TransitCar, issues: string[]) => void;
+  onPillMouseLeave: (carId: string | number) => void;
+}
+
+const ListingQualityPill: React.FC<ListingQualityPillProps> = ({
+  car,
+  isActive,
+  onPillClick,
+  onPillMouseEnter,
+  onPillMouseLeave
+}) => {
   const issues = getListingQualityIssues(car);
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
 
   if (issues.length === 0) {
     return (
-      <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/60 w-fit select-none">
-        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+      <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/15 px-2 py-0.5 rounded-full border border-emerald-500/30 w-fit select-none">
+        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
         <span>Tam</span>
       </div>
     );
   }
 
-  const showDropdown = isExpanded || isHovered;
-
   return (
     <div 
       className="relative inline-block select-none"
       onClick={(e) => e.stopPropagation()}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
     >
       <button
+        data-warning-pill="true"
         type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsExpanded(prev => !prev);
-        }}
-        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-amber-500/15 text-amber-700 sm:text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer active:scale-95"
+        onClick={(e) => onPillClick(e, car, issues)}
+        onMouseEnter={(e) => onPillMouseEnter(e, car, issues)}
+        onMouseLeave={() => onPillMouseLeave(car.id)}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold border transition-all cursor-pointer active:scale-95 ${
+          isActive
+            ? 'bg-amber-500/30 text-amber-300 border-amber-500/60 shadow-sm'
+            : 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25'
+        }`}
         title="Tövsiyələri göstər"
       >
-        <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+        <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
         <span>⚠ {issues.length} tövsiyə</span>
       </button>
-
-      {showDropdown && (
-        <div 
-          className="absolute bottom-full left-0 mb-1 z-50 w-56 p-2.5 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl text-left animate-in fade-in duration-150"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="font-extrabold text-[11px] text-amber-400 mb-1.5 flex items-center gap-1 border-b border-slate-800 pb-1">
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span>Tövsiyələr ({issues.length}):</span>
-          </div>
-          <ul className="space-y-1 text-[11px] text-slate-200">
-            {issues.map((issue, idx) => (
-              <li key={idx} className="flex items-start gap-1.5 leading-snug">
-                <span className="text-amber-400 font-bold shrink-0">•</span>
-                <span>{issue}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 };
@@ -104,6 +105,128 @@ export const CarList: React.FC<CarListProps> = ({
   onDeleteCar
 }) => {
   const [activeMenu, setActiveMenu] = useState<ActiveMenuPosition | null>(null);
+  const [activeWarningPopover, setActiveWarningPopover] = useState<ActiveWarningPopover | null>(null);
+  const hoverCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const clearHoverTimer = () => {
+    if (hoverCloseTimerRef.current) {
+      clearTimeout(hoverCloseTimerRef.current);
+      hoverCloseTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearHoverTimer();
+    };
+  }, []);
+
+  // Close warning popover on Escape, window resize, scroll, or outside click
+  useEffect(() => {
+    if (!activeWarningPopover) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        clearHoverTimer();
+        setActiveWarningPopover(null);
+      }
+    };
+
+    const handleScrollOrResize = () => {
+      clearHoverTimer();
+      setActiveWarningPopover(null);
+    };
+
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest('[data-warning-popover]') || target.closest('[data-warning-pill]')) {
+        return;
+      }
+      clearHoverTimer();
+      setActiveWarningPopover(null);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', handleScrollOrResize);
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    document.addEventListener('pointerdown', handlePointerDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', handleScrollOrResize);
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [activeWarningPopover]);
+
+  const handlePillClick = (e: React.MouseEvent<HTMLButtonElement>, car: TransitCar, issues: string[]) => {
+    e.stopPropagation();
+    clearHoverTimer();
+    if (activeWarningPopover?.carId === car.id) {
+      setActiveWarningPopover(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const popoverWidth = 256;
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openBelow = spaceAbove < 160 && spaceBelow > spaceAbove;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 8));
+
+    setActiveWarningPopover({
+      carId: car.id,
+      openedBy: 'click',
+      top: openBelow ? rect.bottom + 6 : undefined,
+      bottom: openBelow ? undefined : window.innerHeight - rect.top + 6,
+      left,
+      issues
+    });
+  };
+
+  const handlePillMouseEnter = (e: React.MouseEvent<HTMLButtonElement>, car: TransitCar, issues: string[]) => {
+    clearHoverTimer();
+    if (activeWarningPopover?.carId === car.id && activeWarningPopover.openedBy === 'click') {
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const popoverWidth = 256;
+    const spaceAbove = rect.top;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openBelow = spaceAbove < 160 && spaceBelow > spaceAbove;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 8));
+
+    setActiveWarningPopover({
+      carId: car.id,
+      openedBy: 'hover',
+      top: openBelow ? rect.bottom + 6 : undefined,
+      bottom: openBelow ? undefined : window.innerHeight - rect.top + 6,
+      left,
+      issues
+    });
+  };
+
+  const handlePillMouseLeave = (carId: string | number) => {
+    if (activeWarningPopover?.carId === carId && activeWarningPopover.openedBy === 'hover') {
+      clearHoverTimer();
+      hoverCloseTimerRef.current = setTimeout(() => {
+        setActiveWarningPopover(prev => (prev?.carId === carId && prev.openedBy === 'hover' ? null : prev));
+      }, 150);
+    }
+  };
+
+  const handlePopoverMouseEnter = () => {
+    clearHoverTimer();
+  };
+
+  const handlePopoverMouseLeave = () => {
+    if (activeWarningPopover?.openedBy === 'hover') {
+      clearHoverTimer();
+      hoverCloseTimerRef.current = setTimeout(() => {
+        setActiveWarningPopover(prev => (prev?.openedBy === 'hover' ? null : prev));
+      }, 150);
+    }
+  };
 
   // Close dropdown on Escape, window resize, or scroll
   useEffect(() => {
@@ -202,7 +325,13 @@ export const CarList: React.FC<CarListProps> = ({
                     </button>
                   }
                 >
-                  <ListingQualityPill car={car} />
+                  <ListingQualityPill 
+                    car={car} 
+                    isActive={activeWarningPopover?.carId === car.id}
+                    onPillClick={handlePillClick}
+                    onPillMouseEnter={handlePillMouseEnter}
+                    onPillMouseLeave={handlePillMouseLeave}
+                  />
                 </TransitCard>
               ))}
             </div>
@@ -434,6 +563,44 @@ export const CarList: React.FC<CarListProps> = ({
           document.body
         );
       })()}
+
+      {/* WARNING POPOVER PORTAL (PART 2) */}
+      {activeWarningPopover && createPortal(
+        <div
+          data-warning-popover="true"
+          className="fixed z-[9999] p-3 rounded-xl bg-slate-900 border border-slate-700 shadow-2xl text-left animate-in fade-in zoom-in-95 duration-150 select-none"
+          style={{
+            top: activeWarningPopover.top !== undefined ? `${activeWarningPopover.top}px` : undefined,
+            bottom: activeWarningPopover.bottom !== undefined ? `${activeWarningPopover.bottom}px` : undefined,
+            left: `${activeWarningPopover.left}px`,
+            width: '256px',
+            maxWidth: 'calc(100vw - 16px)'
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseEnter={handlePopoverMouseEnter}
+          onMouseLeave={handlePopoverMouseLeave}
+        >
+          <div className="font-extrabold text-[11px] text-amber-400 mb-2 flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Tövsiyələr ({activeWarningPopover.issues.length}):</span>
+            </span>
+            <span className="text-[10px] text-slate-400 font-normal">
+              {activeWarningPopover.openedBy === 'click' ? 'Bərkidilib' : 'Baxış'}
+            </span>
+          </div>
+          <ul className="space-y-1.5 text-[11px] text-slate-200">
+            {activeWarningPopover.issues.map((issue, idx) => (
+              <li key={idx} className="flex items-start gap-1.5 leading-snug">
+                <span className="text-amber-400 font-bold shrink-0">•</span>
+                <span>{issue}</span>
+              </li>
+            ))}
+          </ul>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

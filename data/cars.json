@@ -135,8 +135,14 @@
     "features": [
       "Kondisioner"
     ],
-    "statusBadges": [],
-    "badges": [],
+    "statusBadges": [
+      "Gömrük olunub",
+      "Azərbaycanda sürülməyib"
+    ],
+    "badges": [
+      "Gömrük olunub",
+      "Azərbaycanda sürülməyib"
+    ],
     "isFeatured": false,
     "status": "active",
     "specs": {
@@ -216,8 +222,14 @@
     "features": [
       "Kondisioner"
     ],
-    "statusBadges": [],
-    "badges": [],
+    "statusBadges": [
+      "Gömrük olunub",
+      "Azərbaycanda sürülməyib"
+    ],
+    "badges": [
+      "Gömrük olunub",
+      "Azərbaycanda sürülməyib"
+    ],
     "isFeatured": false,
     "status": "active",
     "specs": {

@@ -112,18 +112,21 @@ export const TransitCard = React.memo<TransitCardProps>(function TransitCard({
           }}
           className={`w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300 relative z-[1] select-none ${
             imageLoaded ? 'opacity-100' : 'opacity-0'
-          } ${
-            isAdmin && isSold ? 'filter saturate-[0.45] brightness-[0.8] opacity-85' : ''
           }`}
           loading={priority ? 'eager' : 'lazy'}
           fetchPriority={priority ? 'high' : 'auto'}
           decoding="async"
         />
 
-        {/* Admin Sold Yellow Corner Ribbon (PART 4) */}
+        {/* Admin Sold Diagonal Yellow Band Overlay (Variant A) */}
         {isAdmin && isSold && (
-          <div className="absolute top-0 left-0 w-24 h-24 overflow-hidden pointer-events-none z-20">
-            <div className="absolute top-[18px] -left-[28px] -rotate-45 w-[112px] bg-amber-400 text-slate-950 font-black text-[10px] tracking-wider py-0.5 text-center shadow-md border-y border-amber-300 uppercase select-none">
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none z-10">
+            {/* Darken whole image with flat black overlay at 50% opacity */}
+            <div className="absolute inset-0 bg-black/50" />
+            {/* Diagonal solid yellow band corner to corner through the center */}
+            <div 
+              className="w-[150%] bg-amber-400 text-stone-900 font-extrabold text-[15px] sm:text-base tracking-[3px] py-2 text-center shadow-md uppercase select-none relative -rotate-[37deg]"
+            >
               SATILDI
             </div>
           </div>

@@ -192,8 +192,6 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
   setDraggedImgIndex,
   setDragOverImgIndex
 }) => {
-  if (!isOpen) return null;
-
   const currentBrand = brand.toLowerCase().includes('mercedes') 
     ? 'Mercedes' 
     : (brand.toLowerCase().includes('ford') ? 'Ford' : brand);
@@ -230,6 +228,8 @@ export const CarFormModal: React.FC<CarFormModalProps> = ({
     if (issue.includes('gücü')) return { tab: 'basics', label: 'Mühərrikə keç' };
     return { tab: 'basics', label: 'Düzəliş et' };
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-1.5 sm:p-4 bg-black/90 backdrop-blur-md overflow-y-auto">

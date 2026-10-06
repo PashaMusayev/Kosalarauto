@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   CloudUpload, 
   Link as LinkIcon, 
@@ -7,16 +7,19 @@ import {
   Star, 
   Zap, 
   Cloud, 
-  GripHorizontal, 
   ArrowLeft, 
   ArrowRight, 
   Trash2,
   AlertTriangle,
-  AlertCircle
+  AlertCircle,
+  ZoomIn,
+  ArrowLeftRight
 } from 'lucide-react';
 import { FormImageItem } from './adminTypes';
 import { DEFAULT_VEHICLE_PLACEHOLDER } from '../../utils/imageFallback';
 import { formatFileSize } from '../../utils/imageCompressor';
+import { ImagePreviewModal } from './ImagePreviewModal';
+import { getActiveSwapImages } from './useCarImages';
 
 interface ImageUploaderProps {
   imagesList: FormImageItem[];
@@ -28,6 +31,7 @@ interface ImageUploaderProps {
   onFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onAddImageUrl: () => void;
   onMoveImage: (fromIndex: number, toIndex: number) => void;
+  onSwapImages?: (a: number, b: number) => void;
   onMoveImageLeft: (index: number) => void;
   onMoveImageRight: (index: number) => void;
   onSetAsPrimaryImage: (index: number) => void;
@@ -46,6 +50,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onFileUpload,
   onAddImageUrl,
   onMoveImage,
+  onSwapImages,
   onMoveImageLeft,
   onMoveImageRight,
   onSetAsPrimaryImage,
@@ -53,6 +58,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   setDraggedImgIndex,
   setDragOverImgIndex
 }) => {
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const isDraggingRef = useRef(false);
   return (
     <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 space-y-3">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
@@ -130,6 +137,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 draggable={!hasError}
                 onDragStart={(e) => {
                   if (hasError) return;
+                  isDraggingRef.current = true;
                   e.dataTransfer.setData('text/plain', String(i));
                   e.dataTransfer.effectAllowed = 'move';
                   setDraggedImgIndex(i);
@@ -153,14 +161,25 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   const raw = e.dataTransfer.getData('text/plain');
                   const fromIndex = raw !== '' ? Number(raw) : draggedImgIndex;
                   if (fromIndex !== null && !isNaN(fromIndex) && fromIndex !== i) {
-                    onMoveImage(fromIndex, i);
+                    const swap = onSwapImages || getActiveSwapImages();
+                    if (swap) {
+                      swap(fromIndex, i);
+                    } else {
+                      onMoveImage(fromIndex, i);
+                    }
                   }
                   setDraggedImgIndex(null);
                   setDragOverImgIndex(null);
+                  setTimeout(() => {
+                    isDraggingRef.current = false;
+                  }, 100);
                 }}
                 onDragEnd={() => {
                   setDraggedImgIndex(null);
                   setDragOverImgIndex(null);
+                  setTimeout(() => {
+                    isDraggingRef.current = false;
+                  }, 100);
                 }}
                 className={`group relative rounded-xl overflow-hidden border bg-slate-900 flex flex-col transition-all select-none ${
                   hasError
@@ -171,15 +190,34 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 } ${
                   isDragged 
                     ? 'opacity-30 scale-95 border-dashed border-blue-500 ring-2 ring-blue-500/50' 
-                    : isDragOver 
-                      ? 'ring-2 ring-blue-400 border-blue-400 scale-105 bg-blue-950/70 shadow-lg shadow-blue-500/30 z-20'
+                    : isDragOver && !hasError && draggedImgIndex !== null && draggedImgIndex !== i
+                      ? 'ring-2 ring-blue-500 border-blue-400 scale-[1.03] bg-blue-950/80 shadow-xl shadow-blue-500/40 z-30'
                       : ''
                 }`}
-                title={hasError ? `${item.error}${item.errorDetail ? `\n${item.errorDetail}` : ''}` : "Şəklin sırasını dəyişmək üçün sürükləyin və ya aşağıdakı ox düymələrini basın"}
+                title={hasError ? `${item.error}${item.errorDetail ? `\n${item.errorDetail}` : ''}` : "Böyütmək üçün klikləyin, yerini dəyişmək üçün sürükləyin"}
               >
+                {/* Clear visual swap indicator during drag-over */}
+                {isDragOver && !hasError && draggedImgIndex !== null && draggedImgIndex !== i && (
+                  <div className="absolute inset-0 bg-blue-900/75 backdrop-blur-[1px] flex flex-col items-center justify-center p-2 z-30 pointer-events-none animate-in fade-in duration-100">
+                    <div className="bg-blue-600 text-white text-[11px] font-black px-3 py-1.5 rounded-full shadow-lg border border-blue-300 flex items-center gap-1.5 animate-bounce">
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-blue-100" />
+                      <span>Yerini dəyiş</span>
+                    </div>
+                    <span className="text-[10px] text-blue-100 font-bold mt-1 bg-slate-950/85 px-2 py-0.5 rounded shadow-sm">
+                      #{draggedImgIndex + 1} ⇄ #{i + 1}
+                    </span>
+                  </div>
+                )}
+
                 {/* Image Thumbnail Container or Error State Container */}
                 {hasError ? (
-                  <div className="relative aspect-video w-full bg-rose-950/40 p-2 sm:p-2.5 overflow-hidden flex flex-col items-center justify-center text-center select-none border-b border-rose-900/50">
+                  <div 
+                    onClick={(e) => {
+                      if (isDraggingRef.current) return;
+                      setPreviewIndex(i);
+                    }}
+                    className="relative aspect-video w-full bg-rose-950/40 p-2 sm:p-2.5 overflow-hidden flex flex-col items-center justify-center text-center select-none border-b border-rose-900/50 cursor-zoom-in group/img"
+                  >
                     <AlertTriangle className="w-5 h-5 text-rose-400 mb-1 shrink-0 animate-pulse" />
                     <span className="text-[11px] font-bold text-rose-200 line-clamp-1 break-all px-1">
                       {item.fileName || item.file?.name || `Şəkil #${i + 1}`}
@@ -203,9 +241,23 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                       <AlertCircle className="w-2.5 h-2.5" />
                       <span>Xəta</span>
                     </span>
+
+                    {/* Clear hover cue on desktop: zoom in */}
+                    <div className="absolute inset-0 bg-rose-950/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <span className="bg-rose-950/90 text-rose-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border border-rose-800 shadow-sm">
+                        <ZoomIn className="w-3 h-3 text-rose-400" />
+                        <span>Bax</span>
+                      </span>
+                    </div>
                   </div>
                 ) : (
-                  <div className="relative aspect-video w-full bg-slate-100 overflow-hidden flex items-center justify-center">
+                  <div 
+                    onClick={(e) => {
+                      if (isDraggingRef.current) return;
+                      setPreviewIndex(i);
+                    }}
+                    className="relative aspect-video w-full bg-slate-100 overflow-hidden flex items-center justify-center cursor-zoom-in group/img"
+                  >
                     <img 
                       src={item.url} 
                       alt={`Şəkil #${i + 1}`} 
@@ -278,11 +330,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                       </button>
                     )}
 
-                    {/* Drag handle icon indicator on hover */}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                      <span className="bg-slate-900/90 text-slate-200 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 border border-slate-700">
-                        <GripHorizontal className="w-3 h-3 text-blue-400" />
-                        <span>Sürüklə</span>
+                    {/* Clear hover cue on desktop: ZoomIn / Böyüt icon overlay */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <span className="bg-slate-900/90 text-slate-100 text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 border border-slate-700/80 shadow-md">
+                        <ZoomIn className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Böyüt</span>
                       </span>
                     </div>
                   </div>
@@ -344,6 +396,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
           })}
         </div>
       )}
+
+      {/* Click-to-preview full screen overlay */}
+      <ImagePreviewModal
+        images={imagesList}
+        currentIndex={previewIndex}
+        onClose={() => setPreviewIndex(null)}
+        onNavigate={(idx) => setPreviewIndex(idx)}
+      />
     </div>
   );
 };

@@ -1285,7 +1285,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   };
 
   return (
-    <div id="katalog-filter" className={`w-full relative ${isModalOpen ? 'z-50' : 'z-10'}`}>
+    <div id="katalog-filter" className={`w-full relative ${isModalOpen ? 'z-50' : 'z-30'}`}>
       
       {/* ========================================================
           1. MOBILE TRIGGER BAR (Only "Filtrlər" button & Sort, md:hidden)

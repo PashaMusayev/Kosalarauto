@@ -7,6 +7,8 @@ import { DEFAULT_VEHICLE_PLACEHOLDER, getThumbnailUrl, isThumbnailFailed } from 
 import { useBodyScrollLock } from '../utils/scrollLock';
 import { TurboImageSlider } from './TurboImageSlider';
 import { prefetchImages, prefetchCarouselWindow } from '../utils/imagePreloader';
+import { useIsMobile } from '../hooks/useIsMobile';
+import { DETAIL_OPEN_TRANSITION, DETAIL_CLOSE_TRANSITION } from '../utils/detailTransition';
 
 // Subcomponents
 import { DetailModalErrorBoundary } from './detail/DetailModalErrorBoundary';
@@ -54,34 +56,6 @@ interface TransitDetailModalContentProps {
   favorites?: string[];
 }
 
-// Runtime check for mobile view (below md: 768px breakpoint)
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth < 768;
-    }
-    return false;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mql = window.matchMedia('(max-width: 767px)');
-    const onChange = () => {
-      setIsMobile(mql.matches);
-    };
-    setIsMobile(mql.matches);
-    if (mql.addEventListener) {
-      mql.addEventListener('change', onChange);
-      return () => mql.removeEventListener('change', onChange);
-    } else {
-      mql.addListener(onChange);
-      return () => mql.removeListener(onChange);
-    }
-  }, []);
-
-  return isMobile;
-};
-
 // Turbo.az mobile slide transition variants (Outer shell open/close from catalog)
 const mobileSlideVariants: Variants = {
   initial: { 
@@ -89,18 +63,12 @@ const mobileSlideVariants: Variants = {
   },
   animate: { 
     x: 0,
-    transition: { 
-      duration: 0.55, 
-      ease: 'easeOut' 
-    } 
+    transition: DETAIL_OPEN_TRANSITION
   },
   exit: { 
     x: '100%',
     pointerEvents: 'none',
-    transition: { 
-      duration: 0.35, 
-      ease: 'easeIn' 
-    } 
+    transition: DETAIL_CLOSE_TRANSITION
   }
 };
 
@@ -972,7 +940,7 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
 
   return (
     <motion.div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-black/85 backdrop-blur-xs overflow-hidden overscroll-contain touch-pan-y"
+      className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden overscroll-contain touch-pan-y"
       variants={isMobile ? mobileSlideVariants : desktopSlideVariants}
       initial="initial"
       animate="animate"

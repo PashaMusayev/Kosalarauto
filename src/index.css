@@ -4,6 +4,10 @@
   --font-turbo: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
+html, body {
+  background-color: #F8FAFC;
+}
+
 body {
   font-family: var(--font-turbo)!important;
   -webkit-font-smoothing: antialiased;

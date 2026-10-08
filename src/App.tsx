@@ -20,13 +20,20 @@ import { fetchAllCarsFromApi } from './services/carService';
 import { trackWhatsAppClick } from './services/analyticsService';
 import { filterAndSortTransits, parseMultiFilter } from './utils/filterUtils';
 import { prefetchDetailModal } from './utils/detailModalPreloader';
+import { motion, AnimatePresence } from 'motion/react';
+import { useIsMobile } from './hooks/useIsMobile';
+import { 
+  DETAIL_OPEN_TRANSITION, 
+  DETAIL_CLOSE_TRANSITION, 
+  CATALOG_PARALLAX_OFFSET 
+} from './utils/detailTransition';
 
 const TransitDetailModal = React.lazy(prefetchDetailModal);
 const AdminModal = React.lazy(() => import('./components/AdminModal'));
 
 const DetailModalFallback = () => (
   <div 
-    className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-black/85 backdrop-blur-xs overflow-hidden"
+    className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden"
     aria-busy="true"
     aria-label="Avtomobil məlumatları yüklənir"
   >
@@ -164,7 +171,23 @@ export default function App() {
     }
     return [];
   });
-  const [selectedCar, setSelectedCar] = useState<TransitCar | null>(null);
+  const isMobile = useIsMobile();
+  const [selectedCar, setSelectedCar] = useState<TransitCar | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const carId = params.get('car');
+        if (carId) {
+          const initialCars = initialCatalog.cars;
+          const list = initialCars.length > 0 ? initialCars : INITIAL_TRANSITS;
+          const matched = list.find(c => c.id.toLowerCase() === carId.toLowerCase());
+          if (matched) return matched;
+        }
+      } catch (e) {}
+    }
+    return null;
+  });
+  const shiftCatalog = isMobile && selectedCar !== null;
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -709,8 +732,44 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-['-apple-system','BlinkMacSystemFont','Segoe_UI','Roboto','Helvetica_Neue',Arial,sans-serif]">
       
-      {/* Header */}
-      <Header
+      {/* Mobile Parallax Catalog Shade Overlay */}
+      <AnimatePresence initial={false}>
+        {shiftCatalog && (
+          <motion.div
+            key="catalog-shade"
+            className="fixed inset-0 z-[45] pointer-events-none bg-black md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.25 }}
+            exit={{ opacity: 0 }}
+            transition={shiftCatalog ? DETAIL_OPEN_TRANSITION : DETAIL_CLOSE_TRANSITION}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Catalog Page Shell (Parallax push transition on mobile) */}
+      <motion.div
+        id="page-shell"
+        className="flex-1 flex flex-col min-w-0"
+        initial={false}
+        animate={{ x: shiftCatalog ? CATALOG_PARALLAX_OFFSET : 0 }}
+        transition={shiftCatalog ? DETAIL_OPEN_TRANSITION : DETAIL_CLOSE_TRANSITION}
+        style={{ willChange: shiftCatalog ? 'transform' : 'auto' }}
+        transformTemplate={(_, generated) => {
+          if (!generated || generated === 'none') return 'none';
+          const cleaned = generated.replace(/translateZ\([^)]*\)/g, '').trim();
+          if (
+            cleaned === '' ||
+            cleaned === 'translateX(0px)' ||
+            cleaned === 'translateX(0%)' ||
+            cleaned === 'translateX(0)'
+          ) {
+            return 'none';
+          }
+          return generated;
+        }}
+      >
+        {/* Header */}
+        <Header
         favoritesCount={favoriteCars.length}
         onOpenFavorites={handleOpenFavorites}
         onNavigate={handleNavigate}
@@ -872,6 +931,7 @@ export default function App() {
 
       {/* Footer */}
       {!isContactRoute && <Footer onNavigate={handleNavigate} />}
+      </motion.div>
 
       {/* Floating WhatsApp Quick Action Button (Hidden when Car Details Modal, drawers or Filter modal are open) */}
       {!selectedCar && !favoritesOpen && !adminOpen && !filterModalOpen && (

@@ -211,7 +211,6 @@ function validateAndSanitizeCars(cars: unknown[]): { valid: boolean; error?: str
           : (c.specs && typeof c.specs === 'object' ? ((c.specs as Record<string, unknown>).seatCount || (c.specs as Record<string, unknown>).seat_count) : undefined));
     const seatCount = rawSeatCount ? String(rawSeatCount).trim().slice(0, 50) : undefined;
     const condition = String(c.condition ?? '').trim().slice(0, 200);
-    const vinCode = String(c.vinCode ?? c.vin_code ?? '').trim().toUpperCase().slice(0, 50);
     const description = String(c.description ?? '').slice(0, 5000);
     const isFeatured = Boolean(c.isFeatured ?? c.is_featured);
     const status = c.status === 'sold' ? 'sold' : 'active';
@@ -289,7 +288,6 @@ function validateAndSanitizeCars(cars: unknown[]): { valid: boolean; error?: str
       roofHeight,
       ...(seatCount ? { seatCount } : {}),
       condition,
-      vinCode,
       primaryImage,
       images,
       statusBadges,
@@ -353,7 +351,6 @@ const DEFAULT_SERVER_CARS = [
     wheelDrive: 'Ön çəkən (FWD)',
     color: 'Gümüşü metallik',
     fuelType: 'Dizel',
-    vinCode: 'WF0XXXTTFXCY12984',
     location: 'Bakı, Yeni Günəşli',
     statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/images/ford_transit_hero.jpg',
@@ -388,7 +385,6 @@ const DEFAULT_SERVER_CARS = [
     wheelDrive: 'Arxa çəkən (RWD)',
     color: 'Sarı',
     fuelType: 'Dizel',
-    vinCode: 'WDB9066331S194827',
     location: 'Bakı, Yeni Günəşli',
     statusBadges: ['Gömrük olunub', 'Vuruqsuz və rəngsiz'],
     primaryImage: '/pics/mercedes sprinter/msponyan.jpeg',
@@ -602,7 +598,6 @@ function getSanitizedCarsForInjection(): Record<string, unknown>[] | null {
         color: String(car.color ?? '').trim(),
         fuelType: String(car.fuelType ?? '').trim(),
         condition: String(car.condition ?? 'Vuruğu yoxdur, rənglənməyib').trim(),
-        vinCode: String(car.vinCode ?? '').trim(),
         primaryImage: String(car.primaryImage || (Array.isArray(car.images) && car.images[0]) || ''),
         images: Array.isArray(car.images) ? car.images : [],
         description: String(car.description || ''),
@@ -681,7 +676,6 @@ function formatSupabaseCarRow(row: Record<string, any>): Record<string, unknown>
     color: String(row.color ?? specs.color ?? '').trim(),
     fuelType: String(row.fuel_type ?? row.fuelType ?? specs.fuelType ?? '').trim(),
     condition: condition,
-    vinCode: String(row.vin_code ?? row.vinCode ?? specs.vinCode ?? specs.vin_code ?? '').trim(),
     primaryImage: String(row.primary_image || row.primaryImage || ''),
     images: Array.isArray(row.images) ? row.images : (row.primary_image ? [String(row.primary_image)] : []),
     description: String(row.description || specs.description || ''),
@@ -729,7 +723,6 @@ function mapSanitizedCarToSupabaseRow(c: Record<string, unknown>): Record<string
     color: String(c.color ?? '').trim(),
     fuel_type: String(c.fuelType ?? '').trim(),
     condition: condition,
-    vin_code: (c.vinCode as string) || '',
     primary_image: primaryImage,
     images: Array.isArray(c.images) ? c.images : (primaryImage ? [primaryImage] : []),
     description: c.description || '',
@@ -759,8 +752,7 @@ function mapSanitizedCarToSupabaseRow(c: Record<string, unknown>): Record<string
       bodyType: String(c.bodyType ?? '').trim(),
       year: c.year,
       mileage: c.mileage,
-      price: c.price,
-      vinCode: c.vinCode
+      price: c.price
     },
     updated_at: new Date().toISOString()
   };

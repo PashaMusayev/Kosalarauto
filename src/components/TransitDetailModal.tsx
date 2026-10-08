@@ -365,16 +365,15 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
       `💰 Qiymət: ${safePrice} AZN`,
       safeMileage && safeMileage !== '0' ? `🛣️ Yürüş: ${safeMileage} km` : '',
       safeEngine ? `⚡ Mühərrik: ${engineSubtitle}` : '',
-      car?.vinCode ? `🔢 VIN: ${car.vinCode}` : '',
       ``,
       `🔗 Elanın linki:`,
       carDirectLink
     ];
 
-    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[8]));
+    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[7]));
 
     return encodeURIComponent(cleanedLines.join('\n'));
-  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, car?.vinCode, carDirectLink]);
+  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, carDirectLink]);
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMsg}`;
 
@@ -947,16 +946,15 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
       `💰 Qiymət: ${safePrice} AZN`,
       safeMileage && safeMileage !== '0' ? `🛣️ Yürüş: ${safeMileage} km` : '',
       safeEngine ? `⚡ Mühərrik: ${engineSubtitle}` : '',
-      car?.vinCode ? `🔢 VIN: ${car.vinCode}` : '',
       ``,
       `🔗 Elanın linki:`,
       carDirectLink
     ];
 
-    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[8]));
+    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[7]));
 
     return encodeURIComponent(cleanedLines.join('\n'));
-  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, car?.vinCode, carDirectLink]);
+  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, carDirectLink]);
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMsg}`;
 

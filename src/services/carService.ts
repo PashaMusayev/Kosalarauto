@@ -85,7 +85,6 @@ export function mapSupabaseRowToCar(row: Record<string, unknown>): TransitCar {
     color: String(row.color ?? specs.color ?? '').trim(),
     fuelType: String(row.fuel_type ?? row.fuelType ?? specs.fuelType ?? '').trim(),
     condition: condition,
-    vinCode: String(row.vin_code || row.vinCode || specs.vinCode || specs.vin_code || ''),
     statusBadges: mapLegacyBadges(row.badges ?? row.statusBadges),
     badges: mapLegacyBadges(row.badges ?? row.statusBadges),
     images: Array.isArray(row.images) ? (row.images as string[]) : (row.primary_image ? [String(row.primary_image)] : []),
@@ -129,7 +128,6 @@ export function mapCarToSupabaseRow(car: TransitCar): Record<string, unknown> {
     color: String(car.color ?? '').trim(),
     fuel_type: String(car.fuelType ?? '').trim(),
     condition: condition,
-    vin_code: car.vinCode || '',
     primary_image: car.primaryImage || (car.images && car.images[0]) || '',
     images: car.images || [],
     description: car.description || '',
@@ -156,7 +154,6 @@ export function mapCarToSupabaseRow(car: TransitCar): Record<string, unknown> {
       year: car.year,
       mileage: car.mileage,
       price: car.price,
-      vinCode: car.vinCode,
       ...(car.seatCount ? { seatCount: car.seatCount } : {}),
       ...(car.specs || {})
     },

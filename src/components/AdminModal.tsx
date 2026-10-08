@@ -665,8 +665,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
       // Construct car object
       const safeTitle = title.trim() || [brand, model].filter(Boolean).join(' ') || 'Avtomobil';
-      const existingCar = editingCarId ? carsList.find(c => c.id === editingCarId) : null;
-      const safeVin = existingCar?.vinCode || '';
 
       const parsedHp = hp !== '' && hp !== null && hp !== undefined && !isNaN(Number(hp)) && Number(hp) > 0
         ? Math.min(2000, Math.round(Number(hp)))
@@ -694,7 +692,6 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         roofHeight,
         ...(seatCount.trim() ? { seatCount: seatCount.trim() } : {}),
         condition: condition.trim(),
-        vinCode: safeVin,
         primaryImage: currentPrimary,
         images: finalImageUrls.length > 0 ? finalImageUrls : (currentPrimary ? [currentPrimary] : []),
         description: description.trim(),
@@ -723,8 +720,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
           bodyType,
           year: Number(year) || (new Date().getFullYear()),
           mileage: Number(mileage) || 0,
-          price: Number(price) || 0,
-          vinCode: safeVin
+          price: Number(price) || 0
         }
       };
 

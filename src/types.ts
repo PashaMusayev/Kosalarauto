@@ -24,7 +24,6 @@ export interface TransitCar {
   roofHeight?: 'Alçaq dam' | 'Orta dam' | 'Hündür dam' | string;
   seatCount?: string;
   condition?: string;
-  vinCode?: string;
   statusBadges?: string[];
   badges?: string[];
   images: string[];

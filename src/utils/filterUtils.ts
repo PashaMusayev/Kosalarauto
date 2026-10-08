@@ -193,7 +193,6 @@ export const matchesFilter = (car: TransitCar, filters: FilterState): boolean =>
     const brandStr = (car.brand || car.make || '').toLowerCase();
     const modelStr = (car.model || '').toLowerCase();
     const engineStr = (car.engine || '').toLowerCase();
-    const vinStr = (car.vinCode || '').toLowerCase();
     const idStr = (car.id || '').toLowerCase();
     const baseStr = (car.baseLength || '').toLowerCase();
     const bodyStr = (car.bodyType || '').toLowerCase();
@@ -205,7 +204,6 @@ export const matchesFilter = (car: TransitCar, filters: FilterState): boolean =>
       brandStr.includes(q) ||
       modelStr.includes(q) ||
       engineStr.includes(q) ||
-      vinStr.includes(q) ||
       idStr.includes(q) ||
       baseStr.includes(q) ||
       bodyStr.includes(q) ||

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 
 let lockCount = 0;
-let originalBodyOverflow = '';
 let originalHtmlOverflow = '';
 let originalBodyPaddingRight = '';
 
@@ -25,7 +24,6 @@ export function lockBodyScroll(): void {
     const scrollbarWidth = getScrollbarWidth();
 
     // Snapshot original overflow and padding
-    originalBodyOverflow = document.body.style.overflow;
     originalHtmlOverflow = document.documentElement.style.overflow;
     originalBodyPaddingRight = document.body.style.paddingRight;
 
@@ -34,8 +32,7 @@ export function lockBodyScroll(): void {
       document.body.style.paddingRight = `${scrollbarWidth}px`;
     }
 
-    // Lock scroll purely via overflow without modifying scroll position or coordinates
-    document.body.style.overflow = 'hidden';
+    // Lock scroll purely via overflow on documentElement without modifying scroll position or coordinates
     document.documentElement.style.overflow = 'hidden';
   }
 }
@@ -55,7 +52,6 @@ export function unlockBodyScroll(): void {
 
   if (lockCount === 0) {
     // Restore overflow and padding immediately
-    document.body.style.overflow = originalBodyOverflow;
     document.documentElement.style.overflow = originalHtmlOverflow;
     document.body.style.paddingRight = originalBodyPaddingRight;
   }

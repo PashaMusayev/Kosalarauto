@@ -1,6 +1,6 @@
 {
   "name": "Kosalar Auto",
-  "description": "Ford Transit avtomobillərinin satışı, kredit kalkulyatoru və usta yoxlanışlı kataloqu",
+  "description": "Ford Transit avtomobillərinin satışı",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

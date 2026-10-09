@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { mapLegacyBadges, sanitizeStatusBadges } from './src/data/badges';
+import { createBotRouter } from './bot/botRoutes.js';
 
 const getDirname = () => {
   if (typeof __dirname !== 'undefined') return __dirname;
@@ -321,7 +322,7 @@ function normalizeSupabaseUrl(url: string): string {
 let serverSupabase: SupabaseClient | null = null;
 const STORAGE_BUCKET_NAME = 'car-images';
 
-function getServerSupabase(): SupabaseClient | null {
+export function getServerSupabase(): SupabaseClient | null {
   if (serverSupabase) return serverSupabase;
   const rawUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
   const sUrl = normalizeSupabaseUrl(rawUrl);
@@ -803,7 +804,7 @@ function injectInitialCarsIntoHtml(html: string): string {
 /**
  * Formats a raw Supabase cars table row into a standard TransitCar model.
  */
-function formatSupabaseCarRow(row: Record<string, any>): Record<string, unknown> {
+export function formatSupabaseCarRow(row: Record<string, any>): Record<string, unknown> {
   const specs = (typeof row.specs === 'object' && row.specs !== null) ? (row.specs as Record<string, unknown>) : {};
   const rawBrandInput = String(row.brand || row.make || specs.brand || specs.make || '');
   const rawBrand = rawBrandInput.toLowerCase().includes('mercedes')
@@ -2276,6 +2277,16 @@ async function startServer() {
       res.status(500).json({ success: false, error: 'Təsdiqləmə zamanı daxili server xətası baş verdi' });
     }
   });
+
+  // Mount AI Sales Assistant Admin Router (/api/admin/bot)
+  app.use(
+    '/api/admin/bot',
+    createBotRouter({
+      getServerSupabase,
+      requireAdminAuth,
+      formatSupabaseCarRow
+    })
+  );
 
   // =============================================================
   // Open Graph Image Generation & Caching (/api/og/:file)

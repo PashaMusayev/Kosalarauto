@@ -6,7 +6,8 @@ import {
   RefreshCw, 
   X,
   Images,
-  FolderSync
+  FolderSync,
+  Bot
 } from 'lucide-react';
 import { ConnectionStatusState } from './adminTypes';
 import { STORAGE_BUCKET_NAME } from '../../services/supabaseClientInit';
@@ -21,6 +22,7 @@ interface AdminHeaderProps {
   onOpenRlsModal: () => void;
   onOpenThumbnailModal?: () => void;
   onOpenStorageManagerModal?: () => void;
+  onOpenBotPanel?: () => void;
   onRunConnectionTest: () => void;
   onLogout: () => void;
   onClose: () => void;
@@ -36,6 +38,7 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   onOpenRlsModal,
   onOpenThumbnailModal,
   onOpenStorageManagerModal,
+  onOpenBotPanel,
   onRunConnectionTest,
   onLogout,
   onClose
@@ -116,6 +119,17 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               </div>
 
               <div className="flex items-center gap-1.5 shrink-0">
+                {onOpenBotPanel && (
+                  <button
+                    type="button"
+                    onClick={onOpenBotPanel}
+                    className="text-[11px] font-bold bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 px-2 py-1 rounded-lg border border-purple-700/50 flex items-center gap-1 transition-colors"
+                    title="AI Satış Köməkçisi test paneli"
+                  >
+                    <Bot className="w-3 h-3 text-purple-400" />
+                    <span>AI Bot</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={onOpenSettingsModal}
@@ -168,6 +182,19 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             </div>
 
             <div className="flex items-center justify-end gap-2 sm:gap-2.5 shrink-0">
+              {/* AI Bot Test Paneli Düyməsi */}
+              {onOpenBotPanel && (
+                <button
+                  type="button"
+                  onClick={onOpenBotPanel}
+                  className="inline-flex items-center gap-1.5 text-xs text-purple-200 hover:text-white bg-purple-950/60 hover:bg-purple-900/70 px-3 py-2 rounded-xl border border-purple-700/60 transition-all font-bold shadow-sm active:scale-95"
+                  title="AI Satış Köməkçisi və Test Çatı"
+                >
+                  <Bot className="w-3.5 h-3.5 text-purple-400" />
+                  <span>AI Bot</span>
+                </button>
+              )}
+
               {/* Tənzimləmələr Dropdown Menu */}
               <div className="relative">
                 <button

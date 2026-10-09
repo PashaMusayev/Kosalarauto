@@ -44,6 +44,7 @@ import { CarFormModal } from './admin/CarFormModal';
 import { SupabaseSettingsModal, RlsModal } from './admin/AdminModals';
 import { ThumbnailBackfillModal } from './admin/ThumbnailBackfillModal';
 import { StorageManagerModal } from './admin/StorageManagerModal';
+const BotPanel = React.lazy(() => import('./admin/bot/BotPanel'));
 import { useAdminAuth } from './admin/useAdminAuth';
 import { useCarImages } from './admin/useCarImages';
 import { useSupabaseSettings } from './admin/useSupabaseSettings';
@@ -79,6 +80,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
 
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [showStorageManagerModal, setShowStorageManagerModal] = useState(false);
+  const [showBotModal, setShowBotModal] = useState(false);
 
   // Supabase Settings Hook
   const {
@@ -817,6 +819,7 @@ export const AdminModal: React.FC<AdminModalProps> = ({
         onOpenRlsModal={() => setShowRlsModal(true)}
         onOpenThumbnailModal={() => setShowThumbnailModal(true)}
         onOpenStorageManagerModal={() => setShowStorageManagerModal(true)}
+        onOpenBotPanel={() => setShowBotModal(true)}
         onRunConnectionTest={runConnectionTest}
         onLogout={handleLogout}
         onClose={onClose}
@@ -1020,6 +1023,16 @@ export const AdminModal: React.FC<AdminModalProps> = ({
             onCarsUpdated(updated);
           }}
         />
+      )}
+
+      {/* AI Bot Sales Assistant & Test Chat Panel Modal */}
+      {isAuthenticated && showBotModal && (
+        <React.Suspense fallback={null}>
+          <BotPanel
+            isOpen={showBotModal}
+            onClose={() => setShowBotModal(false)}
+          />
+        </React.Suspense>
       )}
 
       {/* Toast Alert */}

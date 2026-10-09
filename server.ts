@@ -615,6 +615,149 @@ function getSanitizedCarsForInjection(): Record<string, unknown>[] | null {
   }
 }
 
+// Lazy loader for sharp image processing to ensure server resilience
+async function loadSharp() {
+  try {
+    return (await import('sharp')).default;
+  } catch {
+    return null;
+  }
+}
+
+function escapeHtml(str: string): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function getShortHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(16).slice(0, 8) || '1';
+}
+
+/**
+ * Injects Open Graph, Twitter cards, and rich title/description for every HTML response.
+ */
+function applyShareMeta(html: string, req: express.Request): string {
+  try {
+    const rawHost = req.get('x-forwarded-host') || req.get('host') || 'kosalarauto.az';
+    const origin = `https://${rawHost}`;
+
+    const requestedCarId = typeof req.query?.car === 'string' ? req.query.car.trim() : '';
+    let matchedCar: any = null;
+
+    if (requestedCarId) {
+      const allCars = getCarsFromDisk();
+      if (Array.isArray(allCars)) {
+        matchedCar = allCars.find(c => c && typeof c.id === 'string' && c.id.toLowerCase() === requestedCarId.toLowerCase());
+      }
+    }
+
+    let pageTitle = 'Kosalar Auto';
+    let metaDescription = 'Ford Transit avtomobillərinin satışı, kredit kalkulyatoru və usta yoxlanışlı kataloqu';
+    let ogTitle = 'Kosalar Auto';
+    let ogDescription = 'Ford Transit avtomobillərinin satışı, kredit kalkulyatoru və usta yoxlanışlı kataloqu';
+    let ogUrl = `${origin}${req.path || '/'}`;
+    let ogImage = `${origin}/api/og/default.jpg`;
+    let ogImageAlt = 'Kosalar Auto';
+
+    if (matchedCar) {
+      const safeTitle = String(matchedCar.title || 'Ford Transit').trim();
+      const rawEngine = String(matchedCar.engine || '').trim();
+      const engineSubtitle = rawEngine ? (rawEngine.toLowerCase().includes('l') ? rawEngine : `${rawEngine} L`) : '';
+      const safeYear = matchedCar.year ? `${matchedCar.year} il` : '';
+      const heading = [safeTitle, engineSubtitle, safeYear].filter(Boolean).join(', ');
+
+      const city = String(matchedCar.city || matchedCar.location || 'Bakı').trim();
+      const priceNum = Math.round(Number(matchedCar.price) || 0);
+      const priceFormatted = priceNum.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+
+      if (matchedCar.status === 'sold') {
+        ogTitle = `${heading} - SATILDI - Kosalar Auto`;
+      } else {
+        ogTitle = `${heading}, ${city} - qiyməti ${priceFormatted} AZN - Kosalar Auto`;
+      }
+      pageTitle = ogTitle;
+      ogImageAlt = heading || 'Kosalar Auto';
+
+      const mileageNum = Number(matchedCar.mileage);
+      const formattedMileage = (!isNaN(mileageNum) && mileageNum > 0)
+        ? `${Math.round(mileageNum).toLocaleString('ru-RU').replace(/\u00A0/g, ' ')} km`
+        : '';
+      const transmission = String(matchedCar.transmission || '').trim();
+      const fuelType = String(matchedCar.fuelType || '').trim();
+
+      let descSnippet = '';
+      if (matchedCar.description && typeof matchedCar.description === 'string') {
+        const cleanDesc = matchedCar.description.replace(/\s+/g, ' ').trim();
+        if (cleanDesc.length > 140) {
+          const cut = cleanDesc.slice(0, 140);
+          const lastSpace = cut.lastIndexOf(' ');
+          descSnippet = (lastSpace > 60 ? cut.slice(0, lastSpace) : cut) + '…';
+        } else if (cleanDesc.length > 0) {
+          descSnippet = cleanDesc;
+        }
+      }
+
+      const descParts = [formattedMileage, transmission, fuelType].filter(Boolean);
+      ogDescription = descParts.join(' · ') + (descSnippet ? (descParts.length > 0 ? ' · ' : '') + descSnippet : '');
+      if (!ogDescription) {
+        ogDescription = metaDescription;
+      }
+      metaDescription = ogDescription;
+
+      const sourceImg = String(matchedCar.primaryImage || (Array.isArray(matchedCar.images) && matchedCar.images[0]) || '');
+      const versionHash = getShortHash(sourceImg);
+      ogImage = `${origin}/api/og/${encodeURIComponent(matchedCar.id)}.jpg?v=${versionHash}`;
+      ogUrl = `${origin}/?car=${encodeURIComponent(matchedCar.id)}`;
+    }
+
+    const escTitle = escapeHtml(pageTitle);
+    const escMetaDesc = escapeHtml(metaDescription);
+    const escOgTitle = escapeHtml(ogTitle);
+    const escOgDesc = escapeHtml(ogDescription);
+    const escOgUrl = escapeHtml(ogUrl);
+    const escOgImage = escapeHtml(ogImage);
+    const escOgImageAlt = escapeHtml(ogImageAlt);
+
+    let result = html;
+
+    // 1. Title tag
+    if (result.includes('<title>')) {
+      result = result.replace(/<title>.*?<\/title>/s, `<title>${escTitle}</title>`);
+    }
+
+    // 2. Meta description
+    result = result.replace(/<meta\s+name=["']description["'][^>]*>/i, `<meta name="description" content="${escMetaDesc}" />`);
+
+    // 3. Open Graph tags
+    result = result.replace(/<meta\s+property=["']og:title["'][^>]*>/i, `<meta property="og:title" content="${escOgTitle}" />`);
+    result = result.replace(/<meta\s+property=["']og:description["'][^>]*>/i, `<meta property="og:description" content="${escOgDesc}" />`);
+    result = result.replace(/<meta\s+property=["']og:url["'][^>]*>/i, `<meta property="og:url" content="${escOgUrl}" />`);
+    result = result.replace(/<meta\s+property=["']og:image["'][^>]*>/i, `<meta property="og:image" content="${escOgImage}" />`);
+
+    // 4. Add og:image:alt tag if not present
+    if (!result.includes('property="og:image:alt"')) {
+      result = result.replace(/<meta\s+property=["']og:image["'][^>]*>/i, (match) => {
+        return `${match}\n    <meta property="og:image:alt" content="${escOgImageAlt}" />`;
+      });
+    } else {
+      result = result.replace(/<meta\s+property=["']og:image:alt["'][^>]*>/i, `<meta property="og:image:alt" content="${escOgImageAlt}" />`);
+    }
+
+    return result;
+  } catch (err) {
+    console.warn('Could not apply share metadata to HTML:', err);
+    return html;
+  }
+}
+
 /**
  * Injects initial cars data into HTML template as a safe script setting window.__INITIAL_CARS__.
  */
@@ -2107,12 +2250,150 @@ async function startServer() {
       recordFailedLogin(clientIp);
       res.status(401).json({
         success: false,
-        error: 'Daxil edilən şifrə yanlışdır! Zəhmət olmasa təkrar yoxlayın.'
+        error: 'Daxil edilən şifrə yanlışdır! Zəhmət olmasa təkrar yoxlayyn.'
       });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       console.error('Admin verify error:', errMsg);
       res.status(500).json({ success: false, error: 'Təsdiqləmə zamanı daxili server xətası baş verdi' });
+    }
+  });
+
+  // =============================================================
+  // Open Graph Image Generation & Caching (/api/og/:file)
+  // =============================================================
+  const ogImageCache = new Map<string, Buffer>();
+  const MAX_OG_CACHE_SIZE = 200;
+
+  app.get('/api/og/:file', async (req, res) => {
+    try {
+      const fileParam = String(req.params.file || '').trim();
+      let sourceUrl = '';
+      let isDefaultHero = false;
+
+      if (!fileParam || fileParam.toLowerCase() === 'default.jpg') {
+        isDefaultHero = true;
+      } else {
+        const carId = fileParam.replace(/\.jpg$/i, '').trim();
+        const allCars = getCarsFromDisk();
+        let matchedCar: any = null;
+        if (Array.isArray(allCars)) {
+          matchedCar = allCars.find(c => c && typeof c.id === 'string' && c.id.toLowerCase() === carId.toLowerCase());
+        }
+        if (matchedCar) {
+          const rawSrc = String(matchedCar.primaryImage || (Array.isArray(matchedCar.images) && matchedCar.images[0]) || '').trim();
+          // Use the FULL image URL, not the __thumb
+          sourceUrl = rawSrc ? rawSrc.replace('__thumb', '') : '';
+        }
+        if (!sourceUrl) {
+          isDefaultHero = true;
+        }
+      }
+
+      const heroDiskPath = path.resolve(process.cwd(), 'public/images/ford_transit_hero.jpg');
+
+      // 1. Check in-memory cache
+      const cacheKey = isDefaultHero ? '__default_hero__' : sourceUrl;
+      if (ogImageCache.has(cacheKey)) {
+        const cached = ogImageCache.get(cacheKey)!;
+        res.status(200).set({
+          'Content-Type': 'image/jpeg',
+          'Cache-Control': 'public, max-age=86400',
+          'Content-Length': String(cached.length)
+        }).send(cached);
+        return;
+      }
+
+      // 2. Load input buffer
+      let inputBuffer: Buffer | null = null;
+      if (isDefaultHero) {
+        if (fs.existsSync(heroDiskPath)) {
+          inputBuffer = fs.readFileSync(heroDiskPath);
+        }
+      } else {
+        try {
+          const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(8000) });
+          if (response.ok) {
+            const arrBuf = await response.arrayBuffer();
+            inputBuffer = Buffer.from(arrBuf);
+          }
+        } catch (fetchErr) {
+          console.warn('Failed to fetch remote image for OG:', sourceUrl, fetchErr);
+        }
+      }
+
+      // 3. Fallback if input buffer missing
+      if (!inputBuffer) {
+        if (sourceUrl) {
+          res.redirect(302, sourceUrl);
+          return;
+        }
+        if (fs.existsSync(heroDiskPath)) {
+          res.sendFile(heroDiskPath);
+          return;
+        }
+        res.status(404).end();
+        return;
+      }
+
+      // 4. Transform with sharp
+      const sharp = await loadSharp();
+      if (!sharp) {
+        // If sharp is unavailable, gracefully redirect or send file
+        if (isDefaultHero) {
+          res.sendFile(heroDiskPath);
+        } else {
+          res.redirect(302, sourceUrl);
+        }
+        return;
+      }
+
+      let outputBuffer: Buffer;
+      try {
+        outputBuffer = await sharp(inputBuffer)
+          .rotate()
+          .resize(1200, 630, { fit: 'cover', position: 'centre' })
+          .jpeg({ quality: 80, mozjpeg: true })
+          .toBuffer();
+
+        // If the result is larger than 300 KB, re-encode with quality 65
+        if (outputBuffer.length > 300 * 1024) {
+          outputBuffer = await sharp(inputBuffer)
+            .rotate()
+            .resize(1200, 630, { fit: 'cover', position: 'centre' })
+            .jpeg({ quality: 65, mozjpeg: true })
+            .toBuffer();
+        }
+      } catch (sharpErr) {
+        console.warn('Sharp processing failed for OG image:', sharpErr);
+        if (isDefaultHero) {
+          res.sendFile(heroDiskPath);
+        } else {
+          res.redirect(302, sourceUrl);
+        }
+        return;
+      }
+
+      // 5. Store in cache (LRU-like eviction if full)
+      if (ogImageCache.size >= MAX_OG_CACHE_SIZE) {
+        const oldestKey = ogImageCache.keys().next().value;
+        if (oldestKey) ogImageCache.delete(oldestKey);
+      }
+      ogImageCache.set(cacheKey, outputBuffer);
+
+      res.status(200).set({
+        'Content-Type': 'image/jpeg',
+        'Cache-Control': 'public, max-age=86400',
+        'Content-Length': String(outputBuffer.length)
+      }).send(outputBuffer);
+    } catch (routeErr) {
+      console.warn('Error in /api/og/:file route:', routeErr);
+      const heroDiskPath = path.resolve(process.cwd(), 'public/images/ford_transit_hero.jpg');
+      if (fs.existsSync(heroDiskPath)) {
+        res.sendFile(heroDiskPath);
+      } else {
+        res.status(404).end();
+      }
     }
   });
 
@@ -2143,7 +2424,8 @@ async function startServer() {
         }
         let template = fs.readFileSync(indexPath, 'utf-8');
         template = await vite.transformIndexHtml(url, template);
-        const html = injectInitialCarsIntoHtml(template);
+        let html = injectInitialCarsIntoHtml(template);
+        html = applyShareMeta(html, req);
         res.status(200).set({
           'Content-Type': 'text/html',
           'Cache-Control': 'no-cache'
@@ -2161,7 +2443,8 @@ async function startServer() {
         const indexPath = path.join(distPath, 'index.html');
         if (fs.existsSync(indexPath)) {
           const template = fs.readFileSync(indexPath, 'utf-8');
-          const html = injectInitialCarsIntoHtml(template);
+          let html = injectInitialCarsIntoHtml(template);
+          html = applyShareMeta(html, req);
           res.status(200).set({
             'Content-Type': 'text/html',
             'Cache-Control': 'no-cache'

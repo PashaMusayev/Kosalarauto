@@ -289,8 +289,7 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${safeTitle} - Kosalar Auto`,
-          text: `${safeTitle} (${safeYear}-ci il) - ${safePrice} AZN. Kosalar Auto:`,
+          title: `${vehicleMainTitle} - Kosalar Auto`,
           url: shareUrl,
         });
         return;

@@ -8,6 +8,7 @@ import { useBodyScrollLock } from '../utils/scrollLock';
 import { TurboImageSlider } from './TurboImageSlider';
 import { prefetchImages, prefetchCarouselWindow } from '../utils/imagePreloader';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSwipeToClose } from '../hooks/useSwipeToClose';
 import { DETAIL_OPEN_TRANSITION, DETAIL_CLOSE_TRANSITION } from '../utils/detailTransition';
 
 // Subcomponents
@@ -609,6 +610,7 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
 }) => {
   const isMobile = useIsMobile();
   const [isPresent, safeToRemove] = usePresence();
+  const shellRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isMobile) {
@@ -634,6 +636,13 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxSource, setLightboxSource] = useState<'detail' | 'grid'>('detail');
   const photoGridScrollPositionRef = useRef<number>(0);
+
+  // Mobile swipe right to close the detail panel
+  useSwipeToClose(shellRef, {
+    enabled: isMobile && isPresent && !isLightboxOpen && !isPhotoGridOpen,
+    detailX,
+    onClose: onBack || onClose
+  });
 
   // Reset active image & overlay states when car changes
   useEffect(() => {
@@ -942,6 +951,7 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
 
   return (
     <motion.div 
+      ref={shellRef}
       className={`fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden overscroll-contain touch-pan-y ${
         !isPresent && isMobile ? 'pointer-events-none' : ''
       }`}

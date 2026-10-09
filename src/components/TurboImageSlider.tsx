@@ -1247,6 +1247,7 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
     <div
       ref={containerRef}
       onMouseDown={handleMouseDown}
+      data-swipe-close-ignore
       className={`relative select-none overflow-hidden block ${
         isLightbox
           ? 'h-full w-full flex-1 min-h-0 bg-black cursor-default'

@@ -341,6 +341,7 @@ export const DetailLightbox: React.FC<DetailLightboxProps> = ({
             {imagesList.length > 1 && (
               <div 
                 ref={thumbnailsContainerRef}
+                data-swipe-close-ignore
                 onMouseLeave={() => setPreviewIndex(null)}
                 className={`w-full max-w-5xl overflow-x-auto no-scrollbar py-1 flex items-center gap-2.5 px-4 ${
                   imagesList.length <= 7 ? 'justify-center' : 'justify-start'

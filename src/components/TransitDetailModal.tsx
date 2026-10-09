@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { motion, AnimatePresence, Variants } from 'motion/react';
+import { motion, AnimatePresence, Variants, MotionValue, animate } from 'motion/react';
 import { X } from 'lucide-react';
 import { TransitCar } from '../types';
 import { WHATSAPP_NUMBER } from '../data/transits';
@@ -42,6 +42,7 @@ interface TransitDetailModalProps {
   allCars?: TransitCar[];
   onSelectCar?: (car: TransitCar) => void;
   favorites?: string[];
+  detailX?: MotionValue<number>;
 }
 
 interface TransitDetailModalContentProps {
@@ -54,6 +55,7 @@ interface TransitDetailModalContentProps {
   allCars?: TransitCar[];
   onSelectCar?: (car: TransitCar) => void;
   favorites?: string[];
+  detailX?: MotionValue<number>;
 }
 
 // Turbo.az mobile slide transition variants (Outer shell open/close from catalog)
@@ -618,9 +620,18 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   onToggleFavorite,
   allCars = [],
   onSelectCar,
-  favorites = []
+  favorites = [],
+  detailX
 }) => {
   const isMobile = useIsMobile();
+
+  // On mobile mount, smoothly animate detailX from viewport width -> 0
+  useEffect(() => {
+    if (isMobile && detailX) {
+      const controls = animate(detailX, 0, DETAIL_OPEN_TRANSITION);
+      return () => controls.stop();
+    }
+  }, [isMobile, detailX]);
 
   // Bulletproof Body Scroll Lock when modal is open (exact single instance on outer shell)
   useBodyScrollLock(true);
@@ -941,10 +952,21 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   return (
     <motion.div 
       className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden overscroll-contain touch-pan-y"
-      variants={isMobile ? mobileSlideVariants : desktopSlideVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
+      variants={isMobile ? undefined : desktopSlideVariants}
+      initial={isMobile ? false : "initial"}
+      animate={isMobile ? undefined : "animate"}
+      exit={isMobile ? {
+        pointerEvents: 'none',
+        transition: {
+          ...DETAIL_CLOSE_TRANSITION,
+          onUpdate: (latest: any) => {
+            if (detailX && typeof latest?.x === 'number') {
+              detailX.set(latest.x);
+            }
+          }
+        }
+      } : "exit"}
+      style={isMobile ? (detailX ? { x: detailX } : { x: 0 }) : undefined}
       onClick={isPhotoGridOpen || isLightboxOpen ? undefined : onClose}
     >
       {/* Modal Container: Fixed bounds for desktop & mobile, acts as relative anchor for absolute cards */}
@@ -1032,7 +1054,8 @@ export const TransitDetailModal: React.FC<TransitDetailModalProps> = ({
   onToggleFavorite,
   allCars = [],
   onSelectCar,
-  favorites = []
+  favorites = [],
+  detailX
 }) => {
   return (
     <DetailModalErrorBoundary onClose={onClose} carTitle={car?.title}>
@@ -1049,6 +1072,7 @@ export const TransitDetailModal: React.FC<TransitDetailModalProps> = ({
             allCars={allCars}
             onSelectCar={onSelectCar}
             favorites={favorites}
+            detailX={detailX}
           />
         )}
       </AnimatePresence>

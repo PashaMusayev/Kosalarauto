@@ -20,12 +20,11 @@ import { fetchAllCarsFromApi } from './services/carService';
 import { trackWhatsAppClick } from './services/analyticsService';
 import { filterAndSortTransits, parseMultiFilter } from './utils/filterUtils';
 import { prefetchDetailModal } from './utils/detailModalPreloader';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, useMotionValue, useTransform } from 'motion/react';
 import { useIsMobile } from './hooks/useIsMobile';
 import { 
   DETAIL_OPEN_TRANSITION, 
-  DETAIL_CLOSE_TRANSITION, 
-  CATALOG_PARALLAX_OFFSET 
+  DETAIL_CLOSE_TRANSITION 
 } from './utils/detailTransition';
 
 const TransitDetailModal = React.lazy(prefetchDetailModal);
@@ -187,7 +186,33 @@ export default function App() {
     }
     return null;
   });
-  const shiftCatalog = isMobile && selectedCar !== null;
+
+  // Mobile Parallax: shared detailX drives both the detail panel and catalog ("rope" effect)
+  const viewportWidthRef = useRef<number>(typeof window !== 'undefined' ? window.innerWidth : 0);
+  const detailX = useMotionValue<number>(
+    typeof window !== 'undefined'
+      ? selectedCar !== null
+        ? 0
+        : window.innerWidth
+      : 0
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      viewportWidthRef.current = window.innerWidth;
+      if (!selectedCar) {
+        detailX.set(window.innerWidth);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [selectedCar, detailX]);
+
+  const catalogX = useTransform(detailX, (v) => (isMobile ? v - viewportWidthRef.current : 0));
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -732,28 +757,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-['-apple-system','BlinkMacSystemFont','Segoe_UI','Roboto','Helvetica_Neue',Arial,sans-serif]">
       
-      {/* Mobile Parallax Catalog Shade Overlay */}
-      <AnimatePresence initial={false}>
-        {shiftCatalog && (
-          <motion.div
-            key="catalog-shade"
-            className="fixed inset-0 z-[45] pointer-events-none bg-black md:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.25 }}
-            exit={{ opacity: 0 }}
-            transition={shiftCatalog ? DETAIL_OPEN_TRANSITION : DETAIL_CLOSE_TRANSITION}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Catalog Page Shell (Parallax push transition on mobile) */}
       <motion.div
         id="page-shell"
         className="flex-1 flex flex-col min-w-0"
-        initial={false}
-        animate={{ x: shiftCatalog ? CATALOG_PARALLAX_OFFSET : 0 }}
-        transition={shiftCatalog ? DETAIL_OPEN_TRANSITION : DETAIL_CLOSE_TRANSITION}
-        style={{ willChange: shiftCatalog ? 'transform' : 'auto' }}
+        style={{ x: catalogX }}
         transformTemplate={(_, generated) => {
           if (!generated || generated === 'none') return 'none';
           const cleaned = generated.replace(/translateZ\([^)]*\)/g, '').trim();
@@ -985,6 +993,7 @@ export default function App() {
             allCars={transits}
             onSelectCar={handleSelectSimilarCar}
             favorites={favorites}
+            detailX={detailX}
           />
         </React.Suspense>
       )}

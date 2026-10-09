@@ -213,6 +213,21 @@ export default function App() {
   }, [selectedCar, detailX]);
 
   const catalogX = useTransform(detailX, (v) => (isMobile ? v - viewportWidthRef.current : 0));
+  const pageShellRef = useRef<HTMLDivElement>(null); // attach to #page-shell
+  const carDepthRef = useRef<number>(0);
+
+  // Smooth mobile transitions: GPU layer only while moving, subscribe directly without React re-render
+  useEffect(() => {
+    const apply = (v: number) => {
+      const el = pageShellRef.current;
+      if (!el) return;
+      const wc = isMobile && v < viewportWidthRef.current ? 'transform' : 'auto';
+      if (el.style.willChange !== wc) el.style.willChange = wc;
+    };
+    apply(detailX.get());
+    return detailX.on('change', apply);
+  }, [detailX, isMobile]);
+
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -404,6 +419,11 @@ export default function App() {
             catalogUrl.searchParams.delete('photo');
             window.history.replaceState({}, '', catalogUrl.toString());
             window.history.pushState({ carModal: true, carDepth: 1 }, '', originalUrl);
+            carDepthRef.current = 1;
+          } else {
+            carDepthRef.current = typeof window.history.state?.carDepth === 'number' && window.history.state.carDepth > 0
+              ? window.history.state.carDepth
+              : 1;
           }
           detailOpenedFromCatalogRef.current = true;
           setSelectedCar(matchedCar);
@@ -417,7 +437,16 @@ export default function App() {
       }
     } catch (e) {}
 
-    const handlePopState = () => {
+    const handlePopState = (event: Event) => {
+      const st = (event as PopStateEvent).state;
+      const newDepth = st && st.carModal ? (typeof st.carDepth === 'number' && st.carDepth > 0 ? st.carDepth : 1) : 0;
+      if (newDepth > carDepthRef.current) {
+        // Browser FORWARD into a car entry (forward gesture/button) — undo it, never reopen
+        window.history.go(carDepthRef.current - newDepth);
+        return;
+      }
+      carDepthRef.current = newDepth;
+
       const p = normalizePath(window.location.pathname);
       const pathChanged = p !== currentPathRef.current;
       setCurrentPath(p);
@@ -527,6 +556,7 @@ export default function App() {
       url.searchParams.delete('overlay');
       url.searchParams.delete('photo');
       window.history.pushState({ carModal: true, carDepth: 1 }, '', url.toString());
+      carDepthRef.current = 1;
     } catch (e) {}
   }, []);
 
@@ -545,6 +575,7 @@ export default function App() {
       url.searchParams.delete('overlay');
       url.searchParams.delete('photo');
       window.history.pushState({ carModal: true, carDepth: nextDepth }, '', url.toString());
+      carDepthRef.current = nextDepth;
     } catch (e) {}
   }, []);
 
@@ -565,10 +596,12 @@ export default function App() {
         url.searchParams.delete('overlay');
         url.searchParams.delete('photo');
         window.history.replaceState({}, '', url.toString());
+        carDepthRef.current = 0;
       }
     } catch (e) {
       detailOpenedFromCatalogRef.current = false;
       setSelectedCar(null);
+      carDepthRef.current = 0;
     }
   }, []);
 
@@ -587,9 +620,11 @@ export default function App() {
         url.searchParams.delete('overlay');
         url.searchParams.delete('photo');
         window.history.replaceState({}, '', url.toString());
+        carDepthRef.current = 0;
       }
     } catch (e) {
       setSelectedCar(null);
+      carDepthRef.current = 0;
     }
   }, []);
 
@@ -737,6 +772,7 @@ export default function App() {
       
       {/* Catalog Page Shell (Parallax push transition on mobile) */}
       <motion.div
+        ref={pageShellRef}
         id="page-shell"
         className="flex-1 flex flex-col min-w-0"
         style={{ x: catalogX }}

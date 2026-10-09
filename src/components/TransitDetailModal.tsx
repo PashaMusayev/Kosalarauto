@@ -626,6 +626,19 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
     return () => controls.stop();
   }, [isPresent, isMobile, detailX, safeToRemove]);
 
+  // Smooth mobile transitions: GPU layer only while moving, subscribe directly without React re-render
+  useEffect(() => {
+    if (!isMobile) return;
+    const apply = (v: number) => {
+      const el = shellRef.current;
+      if (!el) return;
+      const wc = v > 0 && v < (typeof window !== 'undefined' ? window.innerWidth : 9999) ? 'transform' : 'auto';
+      if (el.style.willChange !== wc) el.style.willChange = wc;
+    };
+    apply(detailX.get());
+    return detailX.on('change', apply);
+  }, [detailX, isMobile]);
+
   // Bulletproof Body Scroll Lock when modal is open (exact single instance on outer shell)
   useBodyScrollLock(true);
 

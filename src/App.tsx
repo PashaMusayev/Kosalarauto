@@ -32,7 +32,7 @@ const AdminModal = React.lazy(() => import('./components/AdminModal'));
 
 const DetailModalFallback = () => (
   <div 
-    className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden"
+    className="hidden md:flex fixed inset-0 z-50 items-center justify-center p-0 md:p-6 bg-transparent md:bg-black/85 md:backdrop-blur-xs overflow-hidden"
     aria-busy="true"
     aria-label="Avtomobil məlumatları yüklənir"
   >
@@ -236,31 +236,9 @@ export default function App() {
     }
   }, [selectedCar, detailModalMounted]);
 
-  // Prefetch detail modal chunk during browser idle time after first paint
+  // Prefetch detail modal chunk immediately on mount so it is ready before user taps
   useEffect(() => {
-    let idleId: number | undefined;
-    let timerId: ReturnType<typeof setTimeout> | undefined;
-
-    if (typeof window !== 'undefined') {
-      if ('requestIdleCallback' in window) {
-        idleId = (window as any).requestIdleCallback(() => {
-          prefetchDetailModal();
-        }, { timeout: 2500 });
-      } else {
-        timerId = setTimeout(() => {
-          prefetchDetailModal();
-        }, 1200);
-      }
-    }
-
-    return () => {
-      if (idleId && 'cancelIdleCallback' in window) {
-        (window as any).cancelIdleCallback(idleId);
-      }
-      if (timerId) {
-        clearTimeout(timerId);
-      }
-    };
+    prefetchDetailModal();
   }, []);
 
   // References to keep latest path and cars available in event listeners without re-binding
@@ -982,7 +960,7 @@ export default function App() {
 
       {/* Detail Modal */}
       {detailModalMounted && (
-        <React.Suspense fallback={selectedCar ? <DetailModalFallback /> : null}>
+        <React.Suspense fallback={selectedCar && !isMobile ? <DetailModalFallback /> : null}>
           <TransitDetailModal
             car={selectedCar}
             onClose={handleCloseDetail}

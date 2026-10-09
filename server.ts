@@ -2441,6 +2441,8 @@ async function startServer() {
       let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
       xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
       xml += `  <url><loc>${escapeXml(`${SITE_URL}/`)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+      xml += `  <url><loc>${escapeXml(`${SITE_URL}/haqqimizda`)}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+      xml += `  <url><loc>${escapeXml(`${SITE_URL}/elaqe`)}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
       for (const car of activeCars) {
         const carId = car.id.trim();
         const loc = `${SITE_URL}/?car=${encodeURIComponent(carId)}`;
@@ -2454,7 +2456,11 @@ async function startServer() {
       }).send(xml);
     } catch (err) {
       console.warn('Unexpected error in /sitemap.xml route:', err);
-      const fallbackXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${escapeXml(`${SITE_URL}/`)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>`;
+      let fallbackXml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      fallbackXml += `  <url><loc>${escapeXml(`${SITE_URL}/`)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+      fallbackXml += `  <url><loc>${escapeXml(`${SITE_URL}/haqqimizda`)}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+      fallbackXml += `  <url><loc>${escapeXml(`${SITE_URL}/elaqe`)}</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>\n`;
+      fallbackXml += '</urlset>';
       res.status(200).set({
         'Content-Type': 'application/xml; charset=utf-8',
         'Cache-Control': 'public, max-age=3600'
@@ -2463,7 +2469,7 @@ async function startServer() {
   });
 
   app.get('/robots.txt', (_req, res) => {
-    const robots = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+    const robots = `User-agent: *\nAllow: /\nAllow: /api/og/\nDisallow: /api/\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
     res.status(200).set({
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=3600'
@@ -2491,6 +2497,38 @@ async function startServer() {
         template = await vite.transformIndexHtml(url, template);
         let html = injectInitialCarsIntoHtml(template);
         html = applyShareMeta(html, req);
+
+        const VALID_CLIENT_ROUTES = new Set(['/', '/haqqimizda', '/elaqe', '/admin444']);
+        const reqPath = req.path || '/';
+
+        if (reqPath === '/admin444') {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+          html = html.replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '');
+          if (html.includes('</head>')) {
+            html = html.replace('</head>', '    <meta name="robots" content="noindex, nofollow" />\n  </head>');
+          }
+          res.status(200).set({
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-cache'
+          }).send(html);
+          return;
+        }
+
+        if (!VALID_CLIENT_ROUTES.has(reqPath)) {
+          res.setHeader('X-Robots-Tag', 'noindex');
+          const rootCanonical = `${SITE_URL}/`;
+          if (html.includes('rel="canonical"')) {
+            html = html.replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${escapeHtml(rootCanonical)}" />`);
+          } else if (html.includes('</head>')) {
+            html = html.replace('</head>', `    <link rel="canonical" href="${escapeHtml(rootCanonical)}" />\n  </head>`);
+          }
+          res.status(404).set({
+            'Content-Type': 'text/html',
+            'Cache-Control': 'no-cache'
+          }).send(html);
+          return;
+        }
+
         res.status(200).set({
           'Content-Type': 'text/html',
           'Cache-Control': 'no-cache'
@@ -2510,6 +2548,38 @@ async function startServer() {
           const template = fs.readFileSync(indexPath, 'utf-8');
           let html = injectInitialCarsIntoHtml(template);
           html = applyShareMeta(html, req);
+
+          const VALID_CLIENT_ROUTES = new Set(['/', '/haqqimizda', '/elaqe', '/admin444']);
+          const reqPath = req.path || '/';
+
+          if (reqPath === '/admin444') {
+            res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+            html = html.replace(/<link\s+rel=["']canonical["'][^>]*>\s*/gi, '');
+            if (html.includes('</head>')) {
+              html = html.replace('</head>', '    <meta name="robots" content="noindex, nofollow" />\n  </head>');
+            }
+            res.status(200).set({
+              'Content-Type': 'text/html',
+              'Cache-Control': 'no-cache'
+            }).send(html);
+            return;
+          }
+
+          if (!VALID_CLIENT_ROUTES.has(reqPath)) {
+            res.setHeader('X-Robots-Tag', 'noindex');
+            const rootCanonical = `${SITE_URL}/`;
+            if (html.includes('rel="canonical"')) {
+              html = html.replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${escapeHtml(rootCanonical)}" />`);
+            } else if (html.includes('</head>')) {
+              html = html.replace('</head>', `    <link rel="canonical" href="${escapeHtml(rootCanonical)}" />\n  </head>`);
+            }
+            res.status(404).set({
+              'Content-Type': 'text/html',
+              'Cache-Control': 'no-cache'
+            }).send(html);
+            return;
+          }
+
           res.status(200).set({
             'Content-Type': 'text/html',
             'Cache-Control': 'no-cache'

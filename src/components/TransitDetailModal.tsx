@@ -639,6 +639,14 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
     return detailX.on('change', apply);
   }, [detailX, isMobile]);
 
+  useEffect(() => {
+    if (!isMobile || !isPresent) return;
+    if (detailX.get() !== 0) {
+      const controls = animate(detailX, 0, DETAIL_OPEN_TRANSITION);
+      return () => controls.stop();
+    }
+  }, [car.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Bulletproof Body Scroll Lock when modal is open (exact single instance on outer shell)
   useBodyScrollLock(true);
 
@@ -654,7 +662,8 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   useSwipeToClose(shellRef, {
     enabled: isMobile && isPresent && !isLightboxOpen && !isPhotoGridOpen,
     detailX,
-    onClose: onBack || onClose
+    onClose: onBack || onClose,
+    resetKey: car.id
   });
 
   // Reset active image & overlay states when car changes

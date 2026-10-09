@@ -1,6 +1,5 @@
 import { useEffect, RefObject } from 'react';
 import { animate, MotionValue } from 'motion/react';
-import { DETAIL_CLOSE_TRANSITION } from '../utils/detailTransition';
 
 const EDGE_GUARD_PX = 24;          // leave the screen's left edge to the phone's own back gesture
 const LOCK_THRESHOLD_PX = 10;
@@ -8,9 +7,9 @@ const CLOSE_DISTANCE_RATIO = 0.33;
 const CLOSE_VELOCITY = 0.5;        // px per ms
 const SNAP_BACK = { duration: 0.25, ease: 'easeOut' } as const;
 
-interface Options { enabled: boolean; detailX: MotionValue<number>; onClose: () => void; }
+interface Options { enabled: boolean; detailX: MotionValue<number>; onClose: () => void; resetKey?: string; }
 
-export function useSwipeToClose(ref: RefObject<HTMLElement | null>, { enabled, detailX, onClose }: Options) {
+export function useSwipeToClose(ref: RefObject<HTMLElement | null>, { enabled, detailX, onClose, resetKey }: Options) {
   useEffect(() => {
     const el = ref.current;
     if (!el || !enabled) return;
@@ -47,7 +46,6 @@ export function useSwipeToClose(ref: RefObject<HTMLElement | null>, { enabled, d
       const velocity = paused ? 0 : (lastX - prevX) / Math.max(1, lastT - prevT);
       if (dx > window.innerWidth * CLOSE_DISTANCE_RATIO || velocity > CLOSE_VELOCITY) {
         closing = true;
-        animate(detailX, window.innerWidth, DETAIL_CLOSE_TRANSITION);
         onClose();
       } else {
         animate(detailX, 0, SNAP_BACK);
@@ -68,5 +66,5 @@ export function useSwipeToClose(ref: RefObject<HTMLElement | null>, { enabled, d
       el.removeEventListener('touchend', onEnd);
       el.removeEventListener('touchcancel', onCancel);
     };
-  }, [ref, enabled, detailX, onClose]);
+  }, [ref, enabled, detailX, onClose, resetKey]);
 }

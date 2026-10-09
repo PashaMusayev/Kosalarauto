@@ -27,7 +27,6 @@ import {
   DETAIL_CLOSE_TRANSITION 
 } from './utils/detailTransition';
 
-const TransitDetailModal = React.lazy(prefetchDetailModal);
 const AdminModal = React.lazy(() => import('./components/AdminModal'));
 
 const DetailModalFallback = () => (
@@ -251,9 +250,11 @@ export default function App() {
     }
   }, [selectedCar, detailModalMounted]);
 
-  // Prefetch detail modal chunk immediately on mount so it is ready before user taps
+  const [DetailModalComp, setDetailModalComp] = useState<React.ComponentType<any> | null>(null);
   useEffect(() => {
-    prefetchDetailModal();
+    let alive = true;
+    prefetchDetailModal().then((m) => { if (alive) setDetailModalComp(() => m.default); });
+    return () => { alive = false; };
   }, []);
 
   // References to keep latest path and cars available in event listeners without re-binding
@@ -995,9 +996,9 @@ export default function App() {
       )}
 
       {/* Detail Modal */}
-      {detailModalMounted && (
-        <React.Suspense fallback={selectedCar && !isMobile ? <DetailModalFallback /> : null}>
-          <TransitDetailModal
+      {detailModalMounted && (DetailModalComp
+        ? (
+          <DetailModalComp
             car={selectedCar}
             onClose={handleCloseDetail}
             onBack={handleBackDetail}
@@ -1009,8 +1010,8 @@ export default function App() {
             favorites={favorites}
             detailX={detailX}
           />
-        </React.Suspense>
-      )}
+        )
+        : (selectedCar && !isMobile ? <DetailModalFallback /> : null))}
 
       {/* Favorites Drawer */}
       <FavoritesDrawer

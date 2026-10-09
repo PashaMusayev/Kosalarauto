@@ -6,6 +6,7 @@
 
 html, body {
   background-color: #F8FAFC;
+  overscroll-behavior-x: none;
 }
 
 body {

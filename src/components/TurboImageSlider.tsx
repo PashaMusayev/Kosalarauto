@@ -278,6 +278,10 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
   const handleNextRef = useRef<() => void>(() => {});
   const handlePrevRef = useRef<() => void>(() => {});
 
+  // Horizontal wheel / touchpad swipe navigation refs
+  const wheelAccumulatorXRef = useRef(0);
+  const wheelLastNavTimeRef = useRef(0);
+
   // Clear wrap timeout on unmount
   useEffect(() => {
     return () => {
@@ -1172,6 +1176,49 @@ export const TurboImageSlider: React.FC<TurboImageSliderProps> = ({
       container.removeEventListener('touchcancel', handleTouchCancel);
     };
   }, [containerWidth, onDragStart, onDragMove, onDragEnd, onDragCancel, isLightbox, onImageClick, totalImages, handleNext, handlePrev]);
+
+  // Horizontal wheel / touchpad navigation (two-finger swipe, tilt wheel)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Only react when the gesture is horizontal: Math.abs(e.deltaX) > Math.abs(e.deltaY) and Math.abs(e.deltaX) > 10.
+      // Vertical scrolling must keep working normally (do NOT preventDefault for vertical wheel).
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY) || Math.abs(e.deltaX) <= 10) {
+        return;
+      }
+
+      // For horizontal gestures: prevent browser history navigation / horizontal overscroll
+      e.preventDefault();
+
+      // Lock further wheel navigation for 500ms after each photo change
+      const now = Date.now();
+      if (now - wheelLastNavTimeRef.current < 500) {
+        wheelAccumulatorXRef.current = 0;
+        return;
+      }
+
+      wheelAccumulatorXRef.current += e.deltaX;
+
+      if (Math.abs(wheelAccumulatorXRef.current) > 50) {
+        const isNext = wheelAccumulatorXRef.current > 0;
+        wheelAccumulatorXRef.current = 0;
+        wheelLastNavTimeRef.current = now;
+
+        if (isNext) {
+          handleNextRef.current();
+        } else {
+          handlePrevRef.current();
+        }
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   // Desktop Mouse Drag Handling (Standard drag only; desktop has no zoom capability - Issue 1)
   const handleMouseDown = (e: React.MouseEvent) => {

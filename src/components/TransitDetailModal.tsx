@@ -10,6 +10,7 @@ import { prefetchImages, prefetchCarouselWindow } from '../utils/imagePreloader'
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useSwipeToClose } from '../hooks/useSwipeToClose';
 import { DETAIL_OPEN_TRANSITION, DETAIL_CLOSE_TRANSITION } from '../utils/detailTransition';
+import { buildWhatsappInquiry } from '../utils/whatsappMessage';
 
 // Subcomponents
 import { DetailModalErrorBoundary } from './detail/DetailModalErrorBoundary';
@@ -308,23 +309,9 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
   };
 
   const whatsappMsg = useMemo(() => {
-    const rawLines = [
-      `Salam! Kosalar Auto, bu avtomobil haqqında ətraflı məlumat almaq istəyirəm:`,
-      ``,
-      `🚗 Avtomobil: ${safeTitle}`,
-      safeYear ? `📅 İl: ${safeYear}` : '',
-      `💰 Qiymət: ${safePrice} AZN`,
-      safeMileage && safeMileage !== '0' ? `🛣️ Yürüş: ${safeMileage} km` : '',
-      safeEngine ? `⚡ Mühərrik: ${engineSubtitle}` : '',
-      ``,
-      `🔗 Elanın linki:`,
-      carDirectLink
-    ];
-
-    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[7]));
-
-    return encodeURIComponent(cleanedLines.join('\n'));
-  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, carDirectLink]);
+    const vehicleTitle = safeYear ? `${safeTitle}, ${safeYear} il` : safeTitle;
+    return buildWhatsappInquiry(vehicleTitle, safePrice, carDirectLink);
+  }, [safeTitle, safeYear, safePrice, carDirectLink]);
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMsg}`;
 
@@ -944,23 +931,9 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   }, [car?.id]);
 
   const whatsappMsg = useMemo(() => {
-    const rawLines = [
-      `Salam! Kosalar Auto, bu avtomobil haqqında ətraflı məlumat almaq istəyirəm:`,
-      ``,
-      `🚗 Avtomobil: ${safeTitle}`,
-      safeYear ? `📅 İl: ${safeYear}` : '',
-      `💰 Qiymət: ${safePrice} AZN`,
-      safeMileage && safeMileage !== '0' ? `🛣️ Yürüş: ${safeMileage} km` : '',
-      safeEngine ? `⚡ Mühərrik: ${engineSubtitle}` : '',
-      ``,
-      `🔗 Elanın linki:`,
-      carDirectLink
-    ];
-
-    const cleanedLines = rawLines.filter(line => typeof line === 'string' && (line !== '' || line === rawLines[1] || line === rawLines[7]));
-
-    return encodeURIComponent(cleanedLines.join('\n'));
-  }, [safeTitle, safeYear, safePrice, safeMileage, engineSubtitle, carDirectLink]);
+    const vehicleTitle = safeYear ? `${safeTitle}, ${safeYear} il` : safeTitle;
+    return buildWhatsappInquiry(vehicleTitle, safePrice, carDirectLink);
+  }, [safeTitle, safeYear, safePrice, carDirectLink]);
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${whatsappMsg}`;
 

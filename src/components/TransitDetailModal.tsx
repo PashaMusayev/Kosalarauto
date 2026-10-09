@@ -221,21 +221,18 @@ const TransitDetailCard: React.FC<TransitDetailCardProps> = ({
   }, [car]);
 
   // Progressive Preloading & Early Orientation Probing: Detail pəncərəsi açılanda və ya maşın dəyişəndə
-  // bütün şəkillərin kiçik miniatürlərini dərhal arxa fonda yüklə və oriyentasiyalarını qabaqcadan təyin et
+  // bütün şəkillərin kiçik miniatürlərini arxa fonda yüklə və oriyentasiyalarını qabaqcadan təyin et
   useEffect(() => {
-    if (imagesList && imagesList.length > 0) {
-      // 1. Dərhal maşının BÜTÜN şəkillərinin miniatürlərini yüklə (failed olanları burax)
+    if (!imagesList || imagesList.length === 0) return;
+    const t = setTimeout(() => {
       const thumbsToPrefetch = imagesList
         .map((img) => getThumbnailUrl(img))
         .filter((thumb) => Boolean(thumb) && !isThumbnailFailed(thumb));
       prefetchImages(thumbsToPrefetch);
-
-      // 2. Mövcud tam ölçülü prefetch pəncərəsini qoru (ilk 4 şəkil)
       prefetchImages(imagesList.slice(0, 4));
-
-      // 3. Early Orientation Probing (Phase 67e): Qalereya açılmadan öncə bütün şəkillərin oriyentasiyalarını arxa fonda təyin et
       probeImagesOrientations(imagesList);
-    }
+    }, 800);
+    return () => clearTimeout(t);
   }, [imagesList]);
 
   // Aktiv şəkil dəyişdikdə: Növbəti 2 və əvvəlki 1 şəkli arxa fonda təmin et
@@ -618,8 +615,18 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
       return;
     }
     if (isPresent) {
-      const controls = animate(detailX, 0, DETAIL_OPEN_TRANSITION);
-      return () => controls.stop();
+      let controls: { stop: () => void } | null = null;
+      let r2 = 0;
+      const r1 = requestAnimationFrame(() => {
+        r2 = requestAnimationFrame(() => {
+          controls = animate(detailX, 0, DETAIL_OPEN_TRANSITION);
+        });
+      });
+      return () => {
+        cancelAnimationFrame(r1);
+        cancelAnimationFrame(r2);
+        controls?.stop();
+      };
     }
     const controls = animate(detailX, window.innerWidth, DETAIL_CLOSE_TRANSITION);
     controls.then(() => safeToRemove?.());
@@ -629,13 +636,12 @@ const TransitDetailModalContent: React.FC<TransitDetailModalContentProps> = ({
   // Smooth mobile transitions: GPU layer only while moving, subscribe directly without React re-render
   useEffect(() => {
     if (!isMobile) return;
-    const apply = (v: number) => {
+    const apply = () => {
       const el = shellRef.current;
       if (!el) return;
-      const wc = v > 0 && v < (typeof window !== 'undefined' ? window.innerWidth : 9999) ? 'transform' : 'auto';
-      if (el.style.willChange !== wc) el.style.willChange = wc;
+      if (el.style.willChange !== 'transform') el.style.willChange = 'transform';
     };
-    apply(detailX.get());
+    apply();
     return detailX.on('change', apply);
   }, [detailX, isMobile]);
 

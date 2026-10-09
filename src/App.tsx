@@ -220,12 +220,12 @@ export default function App() {
     const apply = (v: number) => {
       const el = pageShellRef.current;
       if (!el) return;
-      const wc = isMobile && v < viewportWidthRef.current ? 'transform' : 'auto';
+      const wc = isMobile && (selectedCar !== null || v < viewportWidthRef.current) ? 'transform' : 'auto';
       if (el.style.willChange !== wc) el.style.willChange = wc;
     };
     apply(detailX.get());
     return detailX.on('change', apply);
-  }, [detailX, isMobile]);
+  }, [detailX, isMobile, selectedCar]);
 
   const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(() => {

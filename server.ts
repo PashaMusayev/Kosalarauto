@@ -16,6 +16,8 @@ const getDirname = () => {
   }
 };
 
+const SITE_URL = (process.env.SITE_URL || 'https://kosalarauto.com').replace(/\/+$/, '');
+
 // =============================================================
 // Security Infrastructure: HMAC Admin Session Tokens & Rate Limiting
 // =============================================================
@@ -632,6 +634,15 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;');
 }
 
+function escapeXml(str: string): string {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 function getShortHash(str: string): string {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -642,13 +653,10 @@ function getShortHash(str: string): string {
 }
 
 /**
- * Injects Open Graph, Twitter cards, and rich title/description for every HTML response.
+ * Injects Open Graph, Twitter cards, canonical URL, and rich title/description for every HTML response.
  */
 function applyShareMeta(html: string, req: express.Request): string {
   try {
-    const rawHost = req.get('x-forwarded-host') || req.get('host') || 'kosalarauto.az';
-    const origin = `https://${rawHost}`;
-
     const requestedCarId = typeof req.query?.car === 'string' ? req.query.car.trim() : '';
     let matchedCar: any = null;
 
@@ -663,9 +671,10 @@ function applyShareMeta(html: string, req: express.Request): string {
     let metaDescription = 'Ford Transit avtomobillərinin satışı, kredit kalkulyatoru və usta yoxlanışlı kataloqu';
     let ogTitle = 'Kosalar Auto';
     let ogDescription = 'Ford Transit avtomobillərinin satışı, kredit kalkulyatoru və usta yoxlanışlı kataloqu';
-    let ogUrl = `${origin}${req.path || '/'}`;
-    let ogImage = `${origin}/api/og/default.jpg`;
+    let ogUrl = `${SITE_URL}${req.path || '/'}`;
+    let ogImage = `${SITE_URL}/api/og/default.jpg`;
     let ogImageAlt = 'Kosalar Auto';
+    let canonicalUrl = `${SITE_URL}${req.path || '/'}`;
 
     if (matchedCar) {
       const safeTitle = String(matchedCar.title || 'Ford Transit').trim();
@@ -714,8 +723,9 @@ function applyShareMeta(html: string, req: express.Request): string {
 
       const sourceImg = String(matchedCar.primaryImage || (Array.isArray(matchedCar.images) && matchedCar.images[0]) || '');
       const versionHash = getShortHash(sourceImg);
-      ogImage = `${origin}/api/og/${encodeURIComponent(matchedCar.id)}.jpg?v=${versionHash}`;
-      ogUrl = `${origin}/?car=${encodeURIComponent(matchedCar.id)}`;
+      ogImage = `${SITE_URL}/api/og/${encodeURIComponent(matchedCar.id)}.jpg?v=${versionHash}`;
+      ogUrl = `${SITE_URL}/?car=${encodeURIComponent(matchedCar.id)}`;
+      canonicalUrl = `${SITE_URL}/?car=${encodeURIComponent(matchedCar.id)}`;
     }
 
     const escTitle = escapeHtml(pageTitle);
@@ -725,6 +735,7 @@ function applyShareMeta(html: string, req: express.Request): string {
     const escOgUrl = escapeHtml(ogUrl);
     const escOgImage = escapeHtml(ogImage);
     const escOgImageAlt = escapeHtml(ogImageAlt);
+    const escCanonicalUrl = escapeHtml(canonicalUrl);
 
     let result = html;
 
@@ -749,6 +760,13 @@ function applyShareMeta(html: string, req: express.Request): string {
       });
     } else {
       result = result.replace(/<meta\s+property=["']og:image:alt["'][^>]*>/i, `<meta property="og:image:alt" content="${escOgImageAlt}" />`);
+    }
+
+    // 5. Canonical link tag
+    if (result.includes('rel="canonical"')) {
+      result = result.replace(/<link\s+rel=["']canonical["'][^>]*>/i, `<link rel="canonical" href="${escCanonicalUrl}" />`);
+    } else if (result.includes('</head>')) {
+      result = result.replace('</head>', `    <link rel="canonical" href="${escCanonicalUrl}" />\n  </head>`);
     }
 
     return result;
@@ -2405,6 +2423,53 @@ async function startServer() {
     }
   });
 
+  // SEO Routes: sitemap.xml and robots.txt
+  app.get('/sitemap.xml', (_req, res) => {
+    try {
+      let activeCars: Array<{ id: string }> = [];
+      try {
+        const allCars = getCarsFromDisk();
+        if (Array.isArray(allCars)) {
+          activeCars = allCars.filter(
+            (c: any) => c && typeof c.id === 'string' && c.id.trim() !== '' && c.status !== 'sold'
+          );
+        }
+      } catch (readErr) {
+        console.warn('Error reading cars for sitemap:', readErr);
+      }
+
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      xml += `  <url><loc>${escapeXml(`${SITE_URL}/`)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n`;
+      for (const car of activeCars) {
+        const carId = car.id.trim();
+        const loc = `${SITE_URL}/?car=${encodeURIComponent(carId)}`;
+        xml += `  <url><loc>${escapeXml(loc)}</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>\n`;
+      }
+      xml += '</urlset>';
+
+      res.status(200).set({
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600'
+      }).send(xml);
+    } catch (err) {
+      console.warn('Unexpected error in /sitemap.xml route:', err);
+      const fallbackXml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>${escapeXml(`${SITE_URL}/`)}</loc><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>`;
+      res.status(200).set({
+        'Content-Type': 'application/xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=3600'
+      }).send(fallbackXml);
+    }
+  });
+
+  app.get('/robots.txt', (_req, res) => {
+    const robots = `User-agent: *\nAllow: /\n\nSitemap: ${SITE_URL}/sitemap.xml\n`;
+    res.status(200).set({
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600'
+    }).send(robots);
+  });
+
   // Vite middleware for dev or static server for prod
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -2413,7 +2478,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
     app.use('*', async (req, res, next) => {
-      if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/pics')) {
+      if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/pics') || req.originalUrl.startsWith('/sitemap.xml') || req.originalUrl.startsWith('/robots.txt')) {
         return next();
       }
       try {
